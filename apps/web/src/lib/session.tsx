@@ -17,9 +17,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [projectId, setPid] = useState<string | null>(() => ls.get('ais.project'))
   const projects = useQuery({ queryKey: ['projects'], queryFn: dataApi.projects, enabled: !!user })
   const modeQ = useQuery({ queryKey: ['mode', projectId], queryFn: () => assistantApi.mode(projectId!), enabled: !!user && !!projectId })
-  useEffect(() => { if (user) setToken('mock') }, [user])
-  const login = async (email: string, pw: string) => { const r = await dataApi.login(email, pw); setToken(r.access_token); setUser(r.user); ls.set('ais.user', JSON.stringify(r.user)) }
-  const logout = () => { setUser(null); setPid(null); setToken(null); ls.set('ais.user', null); ls.set('ais.project', null); qc.clear() }
+  useEffect(() => {
+    const tok = ls.get('ais.token')
+    if (tok) setToken(tok)
+    else if (user) setToken('dev_token')
+  }, [user])
+  const login = async (email: string, pw: string) => {
+    const r = await dataApi.login(email, pw)
+    setToken(r.access_token)
+    setUser(r.user)
+    ls.set('ais.token', r.access_token)
+    ls.set('ais.user', JSON.stringify(r.user))
+  }
+  const logout = () => {
+    setUser(null)
+    setPid(null)
+    setToken(null)
+    ls.set('ais.token', null)
+    ls.set('ais.user', null)
+    ls.set('ais.project', null)
+    qc.clear()
+  }
   const setProjectId = (id: string | null) => { setPid(id); ls.set('ais.project', id) }
   const setMode = async (m: Mode) => { await assistantApi.setMode(projectId!, m); qc.invalidateQueries({ queryKey: ['mode'] }); qc.invalidateQueries({ queryKey: ['audit'] }); qc.invalidateQueries({ queryKey: ['workflow'] }) }
   return <S.Provider value={{ user, login, logout, projectId, setProjectId, project: projects.data?.find((p) => p.id === projectId), mode: modeQ.data?.mode ?? 'guided', setMode }}>{children}</S.Provider>

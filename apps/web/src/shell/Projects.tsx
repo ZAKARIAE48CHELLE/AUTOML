@@ -11,7 +11,15 @@ export function Projects() {
   const { user, setProjectId } = useSession(); const nav = useNavigate(); const qc = useQueryClient()
   const q = useQuery({ queryKey: ['projects'], queryFn: dataApi.projects, enabled: !!user })
   const [name, setName] = useState('')
-  const create = useMutation({ mutationFn: () => dataApi.createProject(name), onSuccess: (p) => { qc.invalidateQueries({ queryKey: ['projects'] }); setProjectId(p.project_id); nav('/data') } })
+  const create = useMutation({
+    mutationFn: () => dataApi.createProject(name),
+    onSuccess: (p) => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      setProjectId(p.project_id || (p as any).id)
+      setName('')
+      nav('/data')
+    }
+  })
   if (!user) return <Navigate to="/login" replace />
   return (
     <div className="relative h-full overflow-auto"><div className="aurora" aria-hidden="true"><i /><i /><i /></div><div className="relative z-10"><SimulationBanner />
