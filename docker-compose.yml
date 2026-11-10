@@ -1,18 +1,86 @@
-# Docker Desktop : `docker compose up --build`  → http://localhost:8080
-# Développement avec rechargement à chaud : `docker compose --profile dev up --build web-dev` → http://localhost:5173
+# AI Studio — Microservices Orchestration
 name: ai-studio
+
 services:
+  # -------------------------------------------------------------
+  # API Gateway (Nginx Reverse Proxy on port 8080)
+  # -------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - e1-data-service
+      - e2-training-service
+      - e3-assistant-service
+      - e4-studio-service
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
+  # E1: Data Intelligence Service
+  # -------------------------------------------------------------
+  e1-data-service:
+    build:
+      context: ./services/e1-data-service
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
+  # E2: Model Training Service
+  # -------------------------------------------------------------
+  e2-training-service:
+    build:
+      context: ./services/e2-training-service
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
+  # E3: Agentic AI Assistant Service
+  # -------------------------------------------------------------
+  e3-assistant-service:
+    build:
+      context: ./services/e3-assistant-service
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
+  # E4: Visual Workflow Studio & MLOps Service
+  # -------------------------------------------------------------
+  e4-studio-service:
+    build:
+      context: ./services/e4-studio-service
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
+  # Frontend Web Client (Production Nginx on port 8081)
+  # -------------------------------------------------------------
   web:
     build:
       context: .
       args:
-        # Modules servis par le mock. Retirer un module de la liste = ses appels partent vers VITE_API_BASE_URL.
         VITE_MOCK_MODULES: ${VITE_MOCK_MODULES:-data,training,assistant,studio}
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
     ports:
-      - "8080:80"
+      - "8081:80"
     restart: unless-stopped
 
+  # -------------------------------------------------------------
+  # Frontend Web Client (Dev Hot-Reload on port 5173)
+  # -------------------------------------------------------------
   web-dev:
     profiles: ["dev"]
     build:
@@ -20,11 +88,11 @@ services:
       dockerfile: Dockerfile.dev
     environment:
       VITE_MOCK_MODULES: ${VITE_MOCK_MODULES:-data,training,assistant,studio}
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      CHOKIDAR_USEPOLLING: "true"   # nécessaire pour le rechargement à chaud sous Windows
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - "5173:5173"
     volumes:
       - ./apps/web:/app/apps/web
       - ./packages:/app/packages
-      - /app/node_modules          # garde les dépendances de l'image
+      - /app/node_modules

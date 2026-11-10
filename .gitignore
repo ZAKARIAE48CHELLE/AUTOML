@@ -65,3 +65,7 @@ mlruns/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Codebase Intelligence Artifacts
+.ua/
+graphify-out/
