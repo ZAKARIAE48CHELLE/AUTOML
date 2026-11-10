@@ -69,3 +69,4 @@ Thumbs.db
 # Codebase Intelligence Artifacts
 .ua/
 graphify-out/
+.codebase-memory/
