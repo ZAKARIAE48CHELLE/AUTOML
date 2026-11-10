@@ -1,9 +1,12 @@
 import datetime
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from .database import check_db_health, init_db
+from .models import ConversationModel, MessageModel, ProposalModel
 from .schemas import (
     ChatMessage, ChatMessageRequest, ChatMessageResponse,
     GoalParseRequest, GoalParseResponse, GoalSpec, ObjectiveSpec,
@@ -12,10 +15,16 @@ from .schemas import (
     AuditEvent, AuditActor, PolicyMatrixResponse, PolicyClass, PolicyMatrixRow
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 app = FastAPI(
     title="AI Studio - E3 Agentic AI Assistant Service",
     description="Microservice responsible for LLM conversation, goal parsing, proposal generation, and governance policies",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -101,7 +110,12 @@ def health_live():
 
 @app.get("/health/ready", tags=["Health"])
 def health_ready():
-    return {"status": "ready", "service": "e3-assistant-service", "llm_provider": "ready"}
+    db_health = check_db_health()
+    is_ready = db_health.get("status") == "connected"
+    return JSONResponse(
+        status_code=200 if is_ready else 503,
+        content={"status": "ready" if is_ready else "degraded", "service": "e3-assistant-service", "database": db_health, "llm_provider": "ready"}
+    )
 
 # -------------------------------------------------------------
 # Assistant Conversation Endpoints

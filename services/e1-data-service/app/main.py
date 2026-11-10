@@ -1,9 +1,12 @@
 import datetime
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from .database import check_db_health, init_db
+from .models import UserModel, ProjectModel, DatasetModel, DatasetVersionModel
 from .schemas import (
     ApiErrorDetail, AuthResponse, LoginRequest, RefreshRequest, RefreshResponse, UserInfo,
     Project, ProjectCreate, ProjectResponse,
@@ -14,10 +17,16 @@ from .schemas import (
     SplitSpec, SplitVersion, SplitCounts, SplitTargetDistribution
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 app = FastAPI(
     title="AI Studio - E1 Data Intelligence Service",
     description="Microservice responsible for auth, projects, datasets, profiling, preprocessing, and splits",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -93,7 +102,12 @@ def health_live():
 
 @app.get("/health/ready", tags=["Health"])
 def health_ready():
-    return {"status": "ready", "service": "e1-data-service", "database": "connected"}
+    db_health = check_db_health()
+    is_ready = db_health.get("status") == "connected"
+    return JSONResponse(
+        status_code=200 if is_ready else 503,
+        content={"status": "ready" if is_ready else "degraded", "service": "e1-data-service", "database": db_health}
+    )
 
 # -------------------------------------------------------------
 # Auth Endpoints

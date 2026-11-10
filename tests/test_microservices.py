@@ -28,6 +28,10 @@ def test_e1_data_service():
     r = client.get("/health/live")
     assert r.status_code == 200
     assert r.json()["service"] == "e1-data-service"
+
+    r_ready = client.get("/health/ready")
+    assert r_ready.status_code == 200
+    assert r_ready.json()["database"]["status"] == "connected"
     
     # Auth
     r = client.post("/auth/login", json={"email": "zakariae@emsi.ma", "password": "password123"})
@@ -76,6 +80,10 @@ def test_e2_training_service():
     r = client.get("/health/live")
     assert r.status_code == 200
     assert r.json()["service"] == "e2-training-service"
+
+    r_ready = client.get("/health/ready")
+    assert r_ready.status_code == 200
+    assert r_ready.json()["database"]["status"] == "connected"
     
     # Catalog
     r = client.get("/models/catalog")
@@ -108,6 +116,10 @@ def test_e3_assistant_service():
     r = client.get("/health/live")
     assert r.status_code == 200
     assert r.json()["service"] == "e3-assistant-service"
+
+    r_ready = client.get("/health/ready")
+    assert r_ready.status_code == 200
+    assert r_ready.json()["database"]["status"] == "connected"
     
     # Messages
     r = client.get("/assistant/messages?project_id=p_churn")
@@ -137,6 +149,10 @@ def test_e4_studio_service():
     r = client.get("/health/live")
     assert r.status_code == 200
     assert r.json()["service"] == "e4-studio-service"
+
+    r_ready = client.get("/health/ready")
+    assert r_ready.status_code == 200
+    assert r_ready.json()["database"]["status"] == "connected"
     
     # Node types
     r = client.get("/catalog/node-types")

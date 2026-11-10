@@ -3,6 +3,27 @@ name: ai-studio
 
 services:
   # -------------------------------------------------------------
+  # PostgreSQL 16 (Multi-database persistence for E1, E2, E3, E4)
+  # -------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # -------------------------------------------------------------
   # API Gateway (Nginx Reverse Proxy on port 8080)
   # -------------------------------------------------------------
   api-gateway:
@@ -27,6 +48,10 @@ services:
       - "8001:8001"
     environment:
       - PORT=8001
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e1
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # -------------------------------------------------------------
@@ -39,6 +64,10 @@ services:
       - "8002:8002"
     environment:
       - PORT=8002
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e2
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # -------------------------------------------------------------
@@ -51,6 +80,10 @@ services:
       - "8003:8003"
     environment:
       - PORT=8003
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e3
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # -------------------------------------------------------------
@@ -63,6 +96,10 @@ services:
       - "8004:8004"
     environment:
       - PORT=8004
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e4
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # -------------------------------------------------------------
@@ -96,3 +133,6 @@ services:
       - ./apps/web:/app/apps/web
       - ./packages:/app/packages
       - /app/node_modules
+
+volumes:
+  postgres_data:

@@ -2,10 +2,13 @@ import asyncio
 import datetime
 import json
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from .database import check_db_health, init_db
+from .models import WorkflowModel, WorkflowExecutionModel
 from .schemas import (
     NodeType, Template, Workflow, WorkflowRow, WorkflowVersion, WorkflowVersionMeta,
     WorkflowCreateRequest, WorkflowVersionCreateRequest, WorkflowDiff,
@@ -15,10 +18,16 @@ from .schemas import (
     PromotionRequest, PromotionRecord, compute_canonical_hash
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 app = FastAPI(
     title="AI Studio - E4 Visual Workflow Studio & MLOps Service",
     description="Microservice responsible for DAG editing, validation, approvals, execution engine, SSE, exports, and promotions",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -212,7 +221,12 @@ def health_live():
 
 @app.get("/health/ready", tags=["Health"])
 def health_ready():
-    return {"status": "ready", "service": "e4-studio-service", "executor": "ready"}
+    db_health = check_db_health()
+    is_ready = db_health.get("status") == "connected"
+    return JSONResponse(
+        status_code=200 if is_ready else 503,
+        content={"status": "ready" if is_ready else "degraded", "service": "e4-studio-service", "database": db_health, "executor": "ready"}
+    )
 
 # -------------------------------------------------------------
 # Catalog & Templates

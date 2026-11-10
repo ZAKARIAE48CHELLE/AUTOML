@@ -10,6 +10,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
+*.db
+*.sqlite3
 env/
 venv/
 .venv/
