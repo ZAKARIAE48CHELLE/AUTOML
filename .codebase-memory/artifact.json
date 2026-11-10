@@ -1,11 +1,12 @@
 {
     "schema_version": 2,
-    "commit": "621435b2f150628296010147db853200c01b62ee",
-    "indexed_at": "2026-11-10T18:20:25Z",
+    "commit": "4b3c9220a851b020e2e5dc402e58ca04a09dc042",
+    "indexed_at": "2026-11-10T18:29:56Z",
     "project": "D-EMSI-5emme-AUTOML",
     "nodes": 1555,
     "edges": 4951,
     "original_size": 8323072,
-    "compressed_size": 1470962,
-    "compression_level": 3
+    "compressed_size": 1469647,
+    "compression_level": 3,
+    "reconcile_basis": "git-clean-head"
 }
