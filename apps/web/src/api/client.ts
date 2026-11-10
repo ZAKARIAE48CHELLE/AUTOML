@@ -3,8 +3,8 @@ import { ApiErr, jitter } from '../mock/util'
 
 export type Module = 'data' | 'training' | 'assistant' | 'studio'
 const env = (import.meta as any).env ?? {}
-const MOCKED = new Set<string>(String(env.VITE_MOCK_MODULES ?? 'data,training,assistant,studio').split(',').map((s: string) => s.trim()).filter(Boolean))
-const BASE: string = env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const MOCKED = new Set<string>(String(env.VITE_MOCK_MODULES ?? '').split(',').map((s: string) => s.trim()).filter(Boolean))
+const BASE: string = env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8080` : 'http://localhost:8080')
 
 /** Propriétaire d'une route d'après son préfixe (cf. docs/OWNERSHIP.md). */
 export function moduleOf(path: string): Module {
