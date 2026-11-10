@@ -36,6 +36,7 @@ services:
       - e2-training-service
       - e3-assistant-service
       - e4-studio-service
+      - web
     restart: unless-stopped
 
   # -------------------------------------------------------------
