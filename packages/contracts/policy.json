@@ -1,0 +1,55 @@
+{
+  "classes": [
+    {
+      "id": "L0",
+      "label": "Lecture",
+      "examples": "aperçu, profil existant, catalogues, métriques, explications"
+    },
+    {
+      "id": "L1",
+      "label": "Calcul léger et déterministe",
+      "examples": "profilage, recommandations de prétraitement, validation, création d'une version de workflow, export"
+    },
+    {
+      "id": "L2",
+      "label": "Exécution coûteuse",
+      "examples": "entraînement, tuning, enregistrement d'un modèle (nœuds train.*, model.register)"
+    },
+    {
+      "id": "L3",
+      "label": "Action engageante ou irréversible",
+      "examples": "évaluation finale sur le jeu de test (eval.final_test), promotion d'un modèle, inclusion de données dans un export"
+    }
+  ],
+  "modes": [
+    "auto",
+    "guided",
+    "expert"
+  ],
+  "matrix": [
+    {
+      "cls": "L0",
+      "auto": "libre",
+      "guided": "libre",
+      "expert": "libre"
+    },
+    {
+      "cls": "L1",
+      "auto": "libre, journalisé",
+      "guided": "libre, journalisé",
+      "expert": "libre (clic utilisateur)"
+    },
+    {
+      "cls": "L2",
+      "auto": "une approbation de plan avec budget (essais, durée, nombre de modèles), de portée lignée",
+      "guided": "une approbation par étape d'exécution (entraînement, tuning, enregistrement)",
+      "expert": "clic explicite de l'utilisateur = approbation implicite journalisée ; l'IA propose et explique seulement"
+    },
+    {
+      "cls": "L3",
+      "auto": "approbation explicite individuelle",
+      "guided": "approbation explicite individuelle",
+      "expert": "approbation explicite individuelle"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "type": "data.dataset",
+  "version": "1.0",
+  "label": "Dataset",
+  "owner": "E1",
+  "operation_class": "L0",
+  "adapter": "GET /datasets/{dataset_id}",
+  "input_ports": [],
+  "output_ports": [
+    {
+      "name": "dataset",
+      "type": "Dataset",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "dataset_version_id"
+    ],
+    "properties": {
+      "dataset_version_id": {
+        "type": "string",
+        "title": "Version du dataset",
+        "x-source": "dataset_versions"
+      }
+    }
+  },
+  "params_doc": "dataset_version_id"
+}

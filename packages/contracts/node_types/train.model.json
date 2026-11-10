@@ -1,0 +1,69 @@
+{
+  "type": "train.model",
+  "version": "1.0",
+  "label": "Entraîner un modèle",
+  "owner": "E2",
+  "operation_class": "L2",
+  "adapter": "POST /training/jobs",
+  "input_ports": [
+    {
+      "name": "split",
+      "type": "Split",
+      "multiple": false
+    },
+    {
+      "name": "spec",
+      "type": "PreprocessSpecRef",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "run",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "model_id",
+      "primary_metric",
+      "seed"
+    ],
+    "properties": {
+      "model_id": {
+        "type": "string",
+        "title": "Modèle",
+        "x-source": "models"
+      },
+      "params": {
+        "type": "object",
+        "title": "Hyperparamètres",
+        "x-widget": "model_params"
+      },
+      "primary_metric": {
+        "type": "string",
+        "title": "Métrique principale",
+        "enum": [
+          "f1",
+          "accuracy",
+          "roc_auc",
+          "precision",
+          "recall",
+          "rmse",
+          "mae",
+          "r2"
+        ],
+        "default": "f1"
+      },
+      "seed": {
+        "type": "integer",
+        "title": "Graine",
+        "minimum": 0,
+        "default": 42
+      }
+    }
+  },
+  "params_doc": "model_id, params, primary_metric, seed"
+}

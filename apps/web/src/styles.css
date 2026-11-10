@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.34, 1.56, .64, 1); }
+html, body, #root { height: 100%; }
+body { @apply text-slate-800 antialiased; background: #f4f8fe; font-family: Inter, Calibri, system-ui, sans-serif; }
+
+/* ---------- Keyframes ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { 0% { opacity: 0; transform: scale(.85); } 60% { opacity: 1; transform: scale(1.04); } 100% { transform: scale(1); } }
+@keyframes slideRight { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(79, 129, 189, .45); } 70% { box-shadow: 0 0 0 8px rgba(79, 129, 189, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 129, 189, 0); } }
+@keyframes glowPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, .0), 0 1px 2px rgba(0,0,0,.06); } 50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, .22), 0 4px 16px rgba(59, 130, 246, .25); } }
+@keyframes flashGreen { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .6); } 100% { box-shadow: 0 0 0 16px rgba(34, 197, 94, 0); } }
+@keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(3px); } 30%, 50%, 70% { transform: translateX(-5px); } 40%, 60% { transform: translateX(5px); } }
+@keyframes stripes { from { background-position: 0 0; } to { background-position: 28px 0; } }
+@keyframes dashFlow { to { stroke-dashoffset: -20; } }
+@keyframes blobA { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(60px, 40px) scale(1.15); } 66% { transform: translate(-30px, 70px) scale(.95); } }
+@keyframes blobB { 0%, 100% { transform: translate(0, 0) scale(1); } 40% { transform: translate(-70px, -30px) scale(1.2); } 70% { transform: translate(40px, -50px) scale(.9); } }
+@keyframes blobC { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(50px, -60px) scale(1.25); } }
+@keyframes gradientShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.1); } 75% { transform: rotate(10deg) scale(1.1); } }
+@keyframes bounceDot { 0%, 80%, 100% { transform: translateY(0); opacity: .45; } 40% { transform: translateY(-6px); opacity: 1; } }
+@keyframes checkPop { 0% { transform: scale(0) rotate(-45deg); } 70% { transform: scale(1.3) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes loadbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+@keyframes confetti { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 100% { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+@keyframes underlineGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ---------- Surfaces ---------- */
+.card { @apply rounded-xl border border-slate-200/80 bg-white shadow-sm; animation: fadeUp .55s var(--ease-out) both; transition: box-shadow .25s, border-color .25s, transform .25s var(--ease-out); }
+.card-hover:hover, button.card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px -8px rgba(63, 107, 163, .28); border-color: #a9c1e3; }
+.input { @apply w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none disabled:bg-slate-100; transition: box-shadow .2s, border-color .2s, transform .2s; }
+.input:focus { box-shadow: 0 0 0 3px rgba(79, 129, 189, .22); }
+.label { @apply mb-1 block text-xs font-medium text-slate-600; }
+.th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500; }
+.td { @apply px-3 py-2 text-sm; }
+
+/* Lignes de tableau : apparition en cascade + survol */
+tbody tr { animation: slideRight .4s var(--ease-out) both; transition: background-color .2s; }
+tbody tr:nth-child(1) { animation-delay: .02s } tbody tr:nth-child(2) { animation-delay: .06s } tbody tr:nth-child(3) { animation-delay: .10s } tbody tr:nth-child(4) { animation-delay: .14s } tbody tr:nth-child(5) { animation-delay: .18s } tbody tr:nth-child(6) { animation-delay: .22s } tbody tr:nth-child(7) { animation-delay: .26s } tbody tr:nth-child(8) { animation-delay: .30s } tbody tr:nth-child(n+9) { animation-delay: .34s }
+/* Grilles : cartes en cascade */
+.grid > .card:nth-child(1) { animation-delay: .00s } .grid > .card:nth-child(2) { animation-delay: .07s } .grid > .card:nth-child(3) { animation-delay: .14s } .grid > .card:nth-child(4) { animation-delay: .21s } .grid > .card:nth-child(5) { animation-delay: .28s } .grid > .card:nth-child(6) { animation-delay: .35s } .grid > .card:nth-child(n+7) { animation-delay: .40s }
+.stagger > * { animation: fadeUp .5s var(--ease-out) both; }
+.stagger > *:nth-child(1) { animation-delay: .00s } .stagger > *:nth-child(2) { animation-delay: .06s } .stagger > *:nth-child(3) { animation-delay: .12s } .stagger > *:nth-child(4) { animation-delay: .18s } .stagger > *:nth-child(5) { animation-delay: .24s } .stagger > *:nth-child(6) { animation-delay: .30s } .stagger > *:nth-child(n+7) { animation-delay: .36s }
+
+/* ---------- Boutons ---------- */
+.btn { position: relative; overflow: hidden; transition: transform .2s var(--ease-spring), box-shadow .25s, background-color .2s, opacity .2s; }
+.btn:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 8px 18px -6px rgba(63, 107, 163, .45); }
+.btn:not(:disabled):active { transform: translateY(0) scale(.96); }
+.btn-primary { background-image: linear-gradient(110deg, #3f6ba3, #4f81bd 45%, #6b9bd6); background-size: 200% 100%; }
+.btn-primary:not(:disabled):hover { animation: gradientShift 1.6s ease infinite; }
+.btn-primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%); transform: translateX(-120%); }
+.btn-primary:not(:disabled):hover::after { transform: translateX(120%); transition: transform .7s var(--ease-out); }
+
+/* ---------- Divers ---------- */
+.skeleton { background: linear-gradient(90deg, #eaf0f9 25%, #f7faff 50%, #eaf0f9 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 8px; }
+.progress-stripes { background-image: linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.35) 75%, transparent 75%); background-size: 28px 28px; animation: stripes .8s linear infinite; }
+.badge-running { animation: pulseRing 1.6s ease-out infinite; }
+.badge-pop { animation: popIn .45s var(--ease-spring) both; }
+.shake-once { animation: shake .55s both; }
+.nav-icon { transition: transform .25s var(--ease-spring); }
+a:hover > .nav-icon, button:hover > .nav-icon { animation: wiggle .55s ease; }
+.float { animation: floaty 3.2s ease-in-out infinite; }
+
+/* Fond aurore (clair) */
+.aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; background: linear-gradient(135deg, #f4f8fe 0%, #ffffff 45%, #f1f5ff 100%); }
+.aurora i { position: absolute; border-radius: 9999px; filter: blur(70px); opacity: .55; }
+.aurora i:nth-child(1) { width: 420px; height: 420px; left: -80px; top: -60px; background: #cfe0f8; animation: blobA 18s ease-in-out infinite; }
+.aurora i:nth-child(2) { width: 360px; height: 360px; right: -60px; top: 20%; background: #e0d7fb; animation: blobB 22s ease-in-out infinite; }
+.aurora i:nth-child(3) { width: 380px; height: 380px; left: 35%; bottom: -120px; background: #cdf1e6; animation: blobC 26s ease-in-out infinite; }
+
+/* Workflow : arêtes animées, nœuds vivants */
+.react-flow__edge-path { stroke-dasharray: 7 5; animation: dashFlow .9s linear infinite; }
+.react-flow__edge.running .react-flow__edge-path { animation-duration: .35s; }
+.node-pop { animation: popIn .5s var(--ease-spring) both; transition: box-shadow .25s, border-color .25s, opacity .3s; }
+.node-running { animation: glowPulse 1.5s ease-in-out infinite; }
+.node-done { animation: flashGreen .9s ease-out both; }
+.node-failed { animation: shake .55s both; }
+.react-flow__handle { transition: transform .15s; }
+.react-flow__handle:hover { transform: scale(1.6); }
+
+/* Confettis */
+.confetti-piece { position: absolute; left: 50%; top: 40%; width: 9px; height: 14px; border-radius: 2px; animation: confetti 1.7s cubic-bezier(.15, .8, .3, 1) forwards; }
+
+/* Mouvement réduit : tout est neutralisé */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

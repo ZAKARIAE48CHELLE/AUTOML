@@ -1,0 +1,39 @@
+{
+  "type": "eval.compare",
+  "version": "1.0",
+  "label": "Comparer",
+  "owner": "E2",
+  "operation_class": "L1",
+  "adapter": "POST /experiments/compare",
+  "input_ports": [
+    {
+      "name": "runs",
+      "type": "ModelRun",
+      "multiple": true
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "board",
+      "type": "Leaderboard",
+      "multiple": false
+    },
+    {
+      "name": "best",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "properties": {
+      "min_succeeded": {
+        "type": "integer",
+        "title": "Runs réussis minimum",
+        "minimum": 1,
+        "default": 1
+      }
+    }
+  },
+  "params_doc": "min_succeeded (défaut 1)"
+}

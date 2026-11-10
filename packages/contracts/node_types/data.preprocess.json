@@ -1,0 +1,66 @@
+{
+  "type": "data.preprocess",
+  "version": "1.0",
+  "label": "Prétraitement",
+  "owner": "E1",
+  "operation_class": "L1",
+  "adapter": "POST /preprocessing/specs",
+  "input_ports": [
+    {
+      "name": "split",
+      "type": "Split",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "spec",
+      "type": "PreprocessSpecRef",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "steps"
+    ],
+    "properties": {
+      "steps": {
+        "type": "array",
+        "title": "Étapes ordonnées",
+        "x-widget": "steps",
+        "items": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "impute_median",
+                "impute_mean",
+                "impute_most_frequent",
+                "onehot",
+                "ordinal",
+                "standard_scale",
+                "minmax_scale",
+                "drop_columns"
+              ]
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "params": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  },
+  "params_doc": "steps ordonnées (imputation, encodage, mise à l'échelle, sélection de colonnes)"
+}

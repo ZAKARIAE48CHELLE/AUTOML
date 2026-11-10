@@ -1,0 +1,873 @@
+[
+  {
+    "index": 0,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/auth/login",
+    "purpose": "Authentification (JWT)",
+    "inp": "identifiants",
+    "out": "jeton d'accès + jeton de rafraîchissement",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 1,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/auth/refresh",
+    "purpose": "Renouvellement du jeton",
+    "inp": "jeton de rafraîchissement",
+    "out": "jeton d'accès",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 2,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/projects",
+    "purpose": "Lister les projets accessibles",
+    "inp": "—",
+    "out": "Project[] avec rôle",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 3,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/projects",
+    "purpose": "Créer un projet",
+    "inp": "nom",
+    "out": "project_id",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 4,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/projects/{project_id}",
+    "purpose": "Détail et membres d'un projet",
+    "inp": "project_id",
+    "out": "Project, rôles",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 5,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/datasets",
+    "purpose": "Importer un fichier CSV/XLSX",
+    "inp": "fichier multipart, project_id",
+    "out": "202 : dataset_id, version_id, job_id",
+    "access": "public",
+    "consumers": []
+  },
+  {
+    "index": 6,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/datasets/{dataset_id}",
+    "purpose": "Métadonnées et versions d'un dataset",
+    "inp": "dataset_id",
+    "out": "DatasetVersion[]",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 7,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/datasets/{dataset_id}/preview",
+    "purpose": "Aperçu paginé",
+    "inp": "dataset_id, limit, offset",
+    "out": "colonnes, lignes d'échantillon, total",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 8,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/datasets/{dataset_id}/profile",
+    "purpose": "Lancer le profilage (asynchrone)",
+    "inp": "dataset_version_id",
+    "out": "202 : job_id",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 9,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/datasets/{dataset_id}/profile",
+    "purpose": "Lire le profil ou l'état du job",
+    "inp": "dataset_version_id",
+    "out": "DataProfile ou JobStatus",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 10,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/preprocessing/catalog",
+    "purpose": "Catalogue des transformations",
+    "inp": "—",
+    "out": "transformations + JSON Schema des paramètres",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 11,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/preprocessing/recommendations",
+    "purpose": "Recommandations déterministes de prétraitement",
+    "inp": "dataset_version_id, target, task",
+    "out": "PreprocessSpec brouillon + rule_ids + EvidenceRef",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 12,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/preprocessing/validate",
+    "purpose": "Valider une PreprocessSpec (couche data)",
+    "inp": "dataset_version_id, split_id (optionnel), spec",
+    "out": "ValidationReport",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 13,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/preprocessing/specs",
+    "purpose": "Enregistrer une version de PreprocessSpec",
+    "inp": "dataset_version_id, spec",
+    "out": "spec_id, version, content_hash",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 14,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/preprocessing/specs/{spec_id}",
+    "purpose": "Lire une PreprocessSpec",
+    "inp": "spec_id",
+    "out": "PreprocessSpec",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E4"
+    ]
+  },
+  {
+    "index": 15,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/preprocessing/specs/{spec_id}/preview",
+    "purpose": "Prévisualiser l'effet sur un échantillon d'apprentissage (itération 3)",
+    "inp": "split_id",
+    "out": "statistiques avant/après",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 16,
+    "owner": "E1",
+    "method": "POST",
+    "path": "/splits",
+    "purpose": "Créer un split versionné et déterministe",
+    "inp": "dataset_version_id, split_spec",
+    "out": "split_id, checksum (202 si volumineux)",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 17,
+    "owner": "E1",
+    "method": "GET",
+    "path": "/splits/{split_id}",
+    "purpose": "Lire un split",
+    "inp": "split_id",
+    "out": "SplitVersion : effectifs, distribution de la cible, checksum (jamais les lignes de test)",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E4"
+    ]
+  },
+  {
+    "index": 18,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/models/catalog",
+    "purpose": "Catalogue des modèles",
+    "inp": "task, modality",
+    "out": "ModelSpec[] : schéma de paramètres, prérequis, déterminisme",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 19,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/training/resources",
+    "purpose": "Ressources et plafonds disponibles",
+    "inp": "—",
+    "out": "CPU/GPU, durée max, concurrence, plafonds de budget",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 20,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/training/validate",
+    "purpose": "Valider une configuration (couche training)",
+    "inp": "split_id, preprocess_spec_id, model_id, params, primary_metric",
+    "out": "ValidationReport",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 21,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/training/jobs",
+    "purpose": "Créer un job d'entraînement",
+    "inp": "execution_ref, split_id, preprocess_spec_id, model_id, params, primary_metric, seed",
+    "out": "202 : job_id",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 22,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/training/jobs/{job_id}",
+    "purpose": "Suivre un job",
+    "inp": "job_id",
+    "out": "JobStatus, progression, métriques, logs_ref, run_id",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 23,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/training/jobs/{job_id}/cancel",
+    "purpose": "Annuler un job",
+    "inp": "job_id",
+    "out": "JobStatus",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 24,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/tuning/studies",
+    "purpose": "Lancer une étude Optuna bornée",
+    "inp": "execution_ref, base_config, search_space, budget, primary_metric",
+    "out": "202 : study_id",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 25,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/tuning/studies/{study_id}",
+    "purpose": "Suivre une étude",
+    "inp": "study_id",
+    "out": "essais, meilleur essai, JobStatus, run_id",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 26,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/experiments",
+    "purpose": "Lister les runs d'un projet",
+    "inp": "project_id, filtres",
+    "out": "ExperimentRun[]",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 27,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/experiments/{run_id}",
+    "purpose": "Lire un run",
+    "inp": "run_id",
+    "out": "ExperimentRun : configuration, métriques, artefacts, provenance",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 28,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/experiments/compare",
+    "purpose": "Comparer des runs de même protocole",
+    "inp": "run_ids[]",
+    "out": "Leaderboard (refus si protocoles différents)",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 29,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/experiments/{run_id}/final-evaluation",
+    "purpose": "Évaluation finale sur le test (usage unique par run)",
+    "inp": "execution_ref",
+    "out": "202 : job_id ; run marqué test_evaluated",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 30,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/models/registry",
+    "purpose": "Enregistrer un run dans le registre",
+    "inp": "execution_ref, run_id, name",
+    "out": "model_version_id (alias candidate)",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 31,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/models/registry",
+    "purpose": "Lister les versions de modèles",
+    "inp": "project_id",
+    "out": "ModelVersion[]",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 32,
+    "owner": "E2",
+    "method": "GET",
+    "path": "/models/registry/{model_version_id}",
+    "purpose": "Lire une version de modèle",
+    "inp": "model_version_id",
+    "out": "ModelVersion + ModelArtifact : schéma d'entrée, environnement, checksum",
+    "access": "public",
+    "consumers": [
+      "E3",
+      "E4"
+    ]
+  },
+  {
+    "index": 33,
+    "owner": "E2",
+    "method": "PUT",
+    "path": "/models/registry/{model_version_id}/alias",
+    "purpose": "Poser un alias (mécanisme de promotion)",
+    "inp": "alias, promotion_id",
+    "out": "ModelVersion",
+    "access": "internal",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 34,
+    "owner": "E2",
+    "method": "POST",
+    "path": "/inference/predict",
+    "purpose": "Prédire sur de nouvelles données (worker isolé)",
+    "inp": "model_version_id, records[] ou dataset_version_id",
+    "out": "predictions, probabilités, schema_warnings",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 35,
+    "owner": "E3",
+    "method": "POST",
+    "path": "/assistant/messages",
+    "purpose": "Message de chat contextuel",
+    "inp": "project_id, message, context_refs",
+    "out": "reply, evidence_refs, proposed_actions",
+    "access": "public",
+    "consumers": []
+  },
+  {
+    "index": 36,
+    "owner": "E3",
+    "method": "POST",
+    "path": "/assistant/goals/parse",
+    "purpose": "Structurer un objectif en GoalSpec",
+    "inp": "texte, dataset_version_id",
+    "out": "GoalSpec, questions, warnings",
+    "access": "public",
+    "consumers": []
+  },
+  {
+    "index": 37,
+    "owner": "E3",
+    "method": "POST",
+    "path": "/assistant/proposals",
+    "purpose": "Produire une proposition de plan",
+    "inp": "goal_id, profile_ref",
+    "out": "PlanProposal (WorkflowVersion créée dans E4, justifications, approbations requises)",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 38,
+    "owner": "E3",
+    "method": "GET",
+    "path": "/assistant/proposals/{proposal_id}",
+    "purpose": "Lire une proposition",
+    "inp": "proposal_id",
+    "out": "PlanProposal",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 39,
+    "owner": "E3",
+    "method": "POST",
+    "path": "/assistant/explanations",
+    "purpose": "Expliquer un résultat vérifié",
+    "inp": "subject_ref (execution_id, run_id ou profil)",
+    "out": "Explanation + EvidenceRef[]",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 40,
+    "owner": "E3",
+    "method": "GET",
+    "path": "/assistant/mode",
+    "purpose": "Lire le mode du projet",
+    "inp": "project_id",
+    "out": "mode (auto, guided, expert)",
+    "access": "public",
+    "consumers": [
+      "E1",
+      "E4"
+    ]
+  },
+  {
+    "index": 41,
+    "owner": "E3",
+    "method": "PUT",
+    "path": "/assistant/mode",
+    "purpose": "Changer le mode du projet",
+    "inp": "project_id, mode",
+    "out": "mode",
+    "access": "public",
+    "consumers": [
+      "E1",
+      "E4"
+    ]
+  },
+  {
+    "index": 42,
+    "owner": "E3",
+    "method": "GET",
+    "path": "/assistant/audit",
+    "purpose": "Journal des décisions de l'assistant",
+    "inp": "project_id, filtres",
+    "out": "DecisionAudit[]",
+    "access": "public",
+    "consumers": [
+      "E4"
+    ]
+  },
+  {
+    "index": 43,
+    "owner": "E3",
+    "method": "GET",
+    "path": "/policy/matrix",
+    "purpose": "Matrice de politique (lecture seule)",
+    "inp": "—",
+    "out": "classes × modes",
+    "access": "public",
+    "consumers": [
+      "E1",
+      "E4"
+    ]
+  },
+  {
+    "index": 44,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/catalog/node-types",
+    "purpose": "Catalogue des types de nœuds",
+    "inp": "project_id, task",
+    "out": "NodeType[] (ports, JSON Schema, version de catalogue)",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 45,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/workflows",
+    "purpose": "Créer un workflow et sa première version",
+    "inp": "project_id, spec, origin (human ou ai), source_ref",
+    "out": "workflow_id, version_id, content_hash",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 46,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/workflows",
+    "purpose": "Lister les workflows d'un projet",
+    "inp": "project_id",
+    "out": "Workflow[]",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 47,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/workflows/{workflow_id}",
+    "purpose": "Lire un workflow et la liste de ses versions",
+    "inp": "workflow_id",
+    "out": "Workflow, WorkflowVersion[] (sans spec)",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 48,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/workflows/{workflow_id}/versions",
+    "purpose": "Créer une nouvelle version (édition)",
+    "inp": "parent_version_id, spec",
+    "out": "version_id, content_hash",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 49,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/workflows/{workflow_id}/versions/{version_id}",
+    "purpose": "Lire une version",
+    "inp": "version_id",
+    "out": "WorkflowVersion (spec complète), readiness",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 50,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/workflows/{workflow_id}/versions/{version_id}/diff",
+    "purpose": "Différence entre deux versions",
+    "inp": "against=<version_id>",
+    "out": "ajouts, suppressions, modifications de nœuds, d'arêtes et de paramètres",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 51,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/workflows/{workflow_id}/versions/{version_id}/validate",
+    "purpose": "Validation agrégée (4 couches)",
+    "inp": "version_id",
+    "out": "ValidationReport",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 52,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/workflows/from-template",
+    "purpose": "Créer un workflow à partir d'un gabarit (ex. entraînement rapide)",
+    "inp": "template_id, dataset_version_id, target, paramètres",
+    "out": "workflow_id, version_id",
+    "access": "public",
+    "consumers": [
+      "E2"
+    ]
+  },
+  {
+    "index": 53,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/approvals",
+    "purpose": "Enregistrer une approbation liée à un content_hash",
+    "inp": "workflow_version_id, operation_classes, budget, method",
+    "out": "approval_id",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 54,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/approvals",
+    "purpose": "Lister les approbations d'une version",
+    "inp": "workflow_version_id",
+    "out": "Approval[]",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 55,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/approvals/{approval_id}/revoke",
+    "purpose": "Révoquer une approbation",
+    "inp": "approval_id",
+    "out": "Approval (revoked)",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 56,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/executions",
+    "purpose": "Lancer une exécution (seule voie d'exécution)",
+    "inp": "workflow_version_id, approval_ids[], reuse_from_execution_id (optionnel)",
+    "out": "202 : execution_id",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 57,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/executions",
+    "purpose": "Lister les exécutions",
+    "inp": "workflow_id",
+    "out": "Execution[]",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3"
+    ]
+  },
+  {
+    "index": 58,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/executions/{execution_id}",
+    "purpose": "État détaillé d'une exécution",
+    "inp": "execution_id",
+    "out": "ExecutionStatus, NodeRun[] (statuts, erreurs, result_refs)",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3"
+    ]
+  },
+  {
+    "index": 59,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/executions/{execution_id}/events",
+    "purpose": "Flux SSE des changements d'état",
+    "inp": "execution_id, Last-Event-ID",
+    "out": "événements node_status, execution_status",
+    "access": "public",
+    "consumers": [
+      "E2"
+    ]
+  },
+  {
+    "index": 60,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/executions/{execution_id}/cancel",
+    "purpose": "Annuler une exécution",
+    "inp": "execution_id",
+    "out": "ExecutionStatus",
+    "access": "public",
+    "consumers": [
+      "E2",
+      "E3"
+    ]
+  },
+  {
+    "index": 61,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/exports",
+    "purpose": "Générer un export reproductible (asynchrone)",
+    "inp": "execution_id, include_data (défaut false)",
+    "out": "202 : export_id",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 62,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/exports/{export_id}",
+    "purpose": "Lire un export",
+    "inp": "export_id",
+    "out": "ExportManifest, bundle_uri",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  },
+  {
+    "index": 63,
+    "owner": "E4",
+    "method": "POST",
+    "path": "/registry/promotions",
+    "purpose": "Promouvoir une version de modèle",
+    "inp": "model_version_id, alias, approval_id",
+    "out": "PromotionRecord",
+    "access": "public",
+    "consumers": []
+  },
+  {
+    "index": 64,
+    "owner": "E4",
+    "method": "GET",
+    "path": "/registry/promotions",
+    "purpose": "Historique des promotions",
+    "inp": "model_name",
+    "out": "PromotionRecord[]",
+    "access": "public",
+    "consumers": [
+      "E3"
+    ]
+  }
+]

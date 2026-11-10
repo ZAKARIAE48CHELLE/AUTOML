@@ -1,0 +1,94 @@
+{
+  "type": "train.tune",
+  "version": "1.0",
+  "label": "Optimiser (tuning)",
+  "owner": "E2",
+  "operation_class": "L2",
+  "adapter": "POST /tuning/studies",
+  "input_ports": [
+    {
+      "name": "split",
+      "type": "Split",
+      "multiple": false
+    },
+    {
+      "name": "spec",
+      "type": "PreprocessSpecRef",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "run",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "model_id",
+      "primary_metric",
+      "seed",
+      "budget"
+    ],
+    "properties": {
+      "model_id": {
+        "type": "string",
+        "title": "Modèle",
+        "x-source": "models"
+      },
+      "search_space": {
+        "type": "object",
+        "title": "Espace de recherche",
+        "x-widget": "search_space"
+      },
+      "budget": {
+        "type": "object",
+        "title": "Budget",
+        "required": [
+          "trials",
+          "max_minutes"
+        ],
+        "properties": {
+          "trials": {
+            "type": "integer",
+            "title": "Essais",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "max_minutes": {
+            "type": "integer",
+            "title": "Durée max (min)",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 10
+          }
+        }
+      },
+      "primary_metric": {
+        "type": "string",
+        "title": "Métrique principale",
+        "enum": [
+          "f1",
+          "accuracy",
+          "roc_auc",
+          "precision",
+          "recall",
+          "rmse",
+          "mae",
+          "r2"
+        ],
+        "default": "f1"
+      },
+      "seed": {
+        "type": "integer",
+        "title": "Graine",
+        "minimum": 0,
+        "default": 42
+      }
+    }
+  },
+  "params_doc": "model_id, search_space, budget (essais, durée), primary_metric, seed"
+}

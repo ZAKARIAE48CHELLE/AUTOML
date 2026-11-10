@@ -1,0 +1,454 @@
+{
+  "catalog_version": "1.0.0",
+  "node_types": [
+    {
+      "type": "data.dataset",
+      "version": "1.0",
+      "label": "Dataset",
+      "owner": "E1",
+      "operation_class": "L0",
+      "adapter": "GET /datasets/{dataset_id}",
+      "input_ports": [],
+      "output_ports": [
+        {
+          "name": "dataset",
+          "type": "Dataset",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "dataset_version_id"
+        ],
+        "properties": {
+          "dataset_version_id": {
+            "type": "string",
+            "title": "Version du dataset",
+            "x-source": "dataset_versions"
+          }
+        }
+      },
+      "params_doc": "dataset_version_id"
+    },
+    {
+      "type": "data.split",
+      "version": "1.0",
+      "label": "Split",
+      "owner": "E1",
+      "operation_class": "L1",
+      "adapter": "POST /splits",
+      "input_ports": [
+        {
+          "name": "dataset",
+          "type": "Dataset",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "split",
+          "type": "Split",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "strategy",
+          "test_ratio",
+          "cv_folds",
+          "seed",
+          "target"
+        ],
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "title": "Stratégie",
+            "enum": [
+              "random",
+              "stratified",
+              "group",
+              "time"
+            ],
+            "default": "stratified"
+          },
+          "test_ratio": {
+            "type": "number",
+            "title": "Part du jeu de test",
+            "minimum": 0.05,
+            "maximum": 0.5,
+            "default": 0.2
+          },
+          "cv_folds": {
+            "type": "integer",
+            "title": "Plis de validation croisée",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          },
+          "val_ratio": {
+            "type": "number",
+            "title": "Part de validation (si 1 pli)",
+            "minimum": 0.05,
+            "maximum": 0.4,
+            "default": 0.2
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Graine",
+            "minimum": 0,
+            "default": 42
+          },
+          "target": {
+            "type": "string",
+            "title": "Colonne cible",
+            "x-source": "columns"
+          },
+          "group_column": {
+            "type": "string",
+            "title": "Colonne de groupe",
+            "x-source": "columns"
+          },
+          "time_column": {
+            "type": "string",
+            "title": "Colonne temporelle",
+            "x-source": "columns"
+          }
+        }
+      },
+      "params_doc": "SplitSpec (stratégie, test_ratio, cv_folds, val_ratio, seed, cible, colonnes groupe/temps)"
+    },
+    {
+      "type": "data.preprocess",
+      "version": "1.0",
+      "label": "Prétraitement",
+      "owner": "E1",
+      "operation_class": "L1",
+      "adapter": "POST /preprocessing/specs",
+      "input_ports": [
+        {
+          "name": "split",
+          "type": "Split",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "spec",
+          "type": "PreprocessSpecRef",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "steps"
+        ],
+        "properties": {
+          "steps": {
+            "type": "array",
+            "title": "Étapes ordonnées",
+            "x-widget": "steps",
+            "items": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "impute_median",
+                    "impute_mean",
+                    "impute_most_frequent",
+                    "onehot",
+                    "ordinal",
+                    "standard_scale",
+                    "minmax_scale",
+                    "drop_columns"
+                  ]
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "params": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "params_doc": "steps ordonnées (imputation, encodage, mise à l'échelle, sélection de colonnes)"
+    },
+    {
+      "type": "train.model",
+      "version": "1.0",
+      "label": "Entraîner un modèle",
+      "owner": "E2",
+      "operation_class": "L2",
+      "adapter": "POST /training/jobs",
+      "input_ports": [
+        {
+          "name": "split",
+          "type": "Split",
+          "multiple": false
+        },
+        {
+          "name": "spec",
+          "type": "PreprocessSpecRef",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "run",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "model_id",
+          "primary_metric",
+          "seed"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "title": "Modèle",
+            "x-source": "models"
+          },
+          "params": {
+            "type": "object",
+            "title": "Hyperparamètres",
+            "x-widget": "model_params"
+          },
+          "primary_metric": {
+            "type": "string",
+            "title": "Métrique principale",
+            "enum": [
+              "f1",
+              "accuracy",
+              "roc_auc",
+              "precision",
+              "recall",
+              "rmse",
+              "mae",
+              "r2"
+            ],
+            "default": "f1"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Graine",
+            "minimum": 0,
+            "default": 42
+          }
+        }
+      },
+      "params_doc": "model_id, params, primary_metric, seed"
+    },
+    {
+      "type": "train.tune",
+      "version": "1.0",
+      "label": "Optimiser (tuning)",
+      "owner": "E2",
+      "operation_class": "L2",
+      "adapter": "POST /tuning/studies",
+      "input_ports": [
+        {
+          "name": "split",
+          "type": "Split",
+          "multiple": false
+        },
+        {
+          "name": "spec",
+          "type": "PreprocessSpecRef",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "run",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "model_id",
+          "primary_metric",
+          "seed",
+          "budget"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "title": "Modèle",
+            "x-source": "models"
+          },
+          "search_space": {
+            "type": "object",
+            "title": "Espace de recherche",
+            "x-widget": "search_space"
+          },
+          "budget": {
+            "type": "object",
+            "title": "Budget",
+            "required": [
+              "trials",
+              "max_minutes"
+            ],
+            "properties": {
+              "trials": {
+                "type": "integer",
+                "title": "Essais",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 20
+              },
+              "max_minutes": {
+                "type": "integer",
+                "title": "Durée max (min)",
+                "minimum": 1,
+                "maximum": 60,
+                "default": 10
+              }
+            }
+          },
+          "primary_metric": {
+            "type": "string",
+            "title": "Métrique principale",
+            "enum": [
+              "f1",
+              "accuracy",
+              "roc_auc",
+              "precision",
+              "recall",
+              "rmse",
+              "mae",
+              "r2"
+            ],
+            "default": "f1"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Graine",
+            "minimum": 0,
+            "default": 42
+          }
+        }
+      },
+      "params_doc": "model_id, search_space, budget (essais, durée), primary_metric, seed"
+    },
+    {
+      "type": "eval.compare",
+      "version": "1.0",
+      "label": "Comparer",
+      "owner": "E2",
+      "operation_class": "L1",
+      "adapter": "POST /experiments/compare",
+      "input_ports": [
+        {
+          "name": "runs",
+          "type": "ModelRun",
+          "multiple": true
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "board",
+          "type": "Leaderboard",
+          "multiple": false
+        },
+        {
+          "name": "best",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "min_succeeded": {
+            "type": "integer",
+            "title": "Runs réussis minimum",
+            "minimum": 1,
+            "default": 1
+          }
+        }
+      },
+      "params_doc": "min_succeeded (défaut 1)"
+    },
+    {
+      "type": "eval.final_test",
+      "version": "1.0",
+      "label": "Test final",
+      "owner": "E2",
+      "operation_class": "L3",
+      "adapter": "POST /experiments/{run_id}/final-evaluation",
+      "input_ports": [
+        {
+          "name": "run",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "run",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "params_doc": "— (usage unique par run, approbation L3)"
+    },
+    {
+      "type": "model.register",
+      "version": "1.0",
+      "label": "Enregistrer le modèle",
+      "owner": "E2",
+      "operation_class": "L2",
+      "adapter": "POST /models/registry",
+      "input_ports": [
+        {
+          "name": "run",
+          "type": "ModelRun",
+          "multiple": false
+        }
+      ],
+      "output_ports": [
+        {
+          "name": "version",
+          "type": "ModelVersion",
+          "multiple": false
+        }
+      ],
+      "params_schema": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Nom du modèle",
+            "minLength": 1
+          }
+        }
+      },
+      "params_doc": "name"
+    }
+  ]
+}

@@ -32,9 +32,13 @@ wheels/
 
 # Frontend / Node
 node_modules/
+node_modules
 .npm/
 dist/
+dist
 build/
+.env.local
+*.log
 
 # ML / Data & Artifacts
 *.parquet
@@ -61,4 +65,3 @@ mlruns/
 *.swo
 .DS_Store
 Thumbs.db
-
