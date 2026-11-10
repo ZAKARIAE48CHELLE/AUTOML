@@ -40,5 +40,6 @@ class DatasetVersionModel(Base):
     schema_json = Column(JSON, nullable=True)
     num_rows = Column(Integer, default=0)
     num_columns = Column(Integer, default=0)
+    status = Column(String(32), default="ready")
+    uri = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-

@@ -2,10 +2,11 @@ import datetime
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File, Form, status
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile, File, Form, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from .database import check_db_health, init_db
+from sqlalchemy.orm import Session
+from .database import check_db_health, init_db, get_db
 from .models import UserModel, ProjectModel, DatasetModel, DatasetVersionModel
 from .schemas import (
     ApiErrorDetail, AuthResponse, LoginRequest, RefreshRequest, RefreshResponse, UserInfo,
@@ -28,6 +29,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Ensure tables and seed data are initialized immediately
+init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,13 +117,24 @@ def health_ready():
 # Auth Endpoints
 # -------------------------------------------------------------
 @app.post("/auth/login", response_model=AuthResponse, tags=["Auth"])
-def login(req: LoginRequest):
+def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not req.email or not req.password:
         raise HTTPException(status_code=400, detail="Email et mot de passe requis.")
+    user = db.query(UserModel).filter(UserModel.email == req.email).first()
+    if not user:
+        user = UserModel(
+            id=f"u_{uuid.uuid4().hex[:8]}",
+            email=req.email,
+            name=req.email.split("@")[0].capitalize(),
+            role="owner"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     return AuthResponse(
         access_token=f"jwt_access_{uuid.uuid4().hex[:12]}",
         refresh_token=f"jwt_refresh_{uuid.uuid4().hex[:12]}",
-        user=UserInfo(id="u_dev1", name="Chelle Zakariae", email=req.email)
+        user=UserInfo(id=user.id, name=user.name, email=user.email)
     )
 
 @app.post("/auth/refresh", response_model=RefreshResponse, tags=["Auth"])
@@ -127,56 +142,116 @@ def refresh(req: RefreshRequest):
     return RefreshResponse(access_token=f"jwt_access_{uuid.uuid4().hex[:12]}")
 
 # -------------------------------------------------------------
-# Projects Endpoints
+# Projects Endpoints (PostgreSQL CRUD)
 # -------------------------------------------------------------
 @app.get("/projects", response_model=List[Project], tags=["Projects"])
-def list_projects():
-    return [Project(**p) for p in DB["projects"]]
+def list_projects(db: Session = Depends(get_db)):
+    projects = db.query(ProjectModel).all()
+    if not projects and DB.get("projects"):
+        return [Project(**p) for p in DB["projects"]]
+    return [
+        Project(
+            id=p.id,
+            name=p.name,
+            role=p.role or "owner",
+            created_at=p.created_at.isoformat() if hasattr(p.created_at, "isoformat") else str(p.created_at)
+        )
+        for p in projects
+    ]
 
 @app.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED, tags=["Projects"])
-def create_project(req: ProjectCreate):
+def create_project(req: ProjectCreate, db: Session = Depends(get_db)):
     p_id = f"p_{uuid.uuid4().hex[:8]}"
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    new_p = {"id": p_id, "name": req.name, "role": "owner", "created_at": now}
-    DB["projects"].append(new_p)
-    return ProjectResponse(project_id=p_id, **new_p)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    p = ProjectModel(id=p_id, name=req.name, role="owner", created_at=now)
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    # Also update in-memory DB for backwards compatibility
+    DB["projects"].append({"id": p.id, "name": p.name, "role": p.role, "created_at": now.isoformat()})
+    return ProjectResponse(
+        project_id=p.id,
+        id=p.id,
+        name=p.name,
+        role=p.role,
+        created_at=p.created_at.isoformat()
+    )
 
 @app.get("/projects/{project_id}", tags=["Projects"])
-def get_project(project_id: str):
-    p = next((x for x in DB["projects"] if x["id"] == project_id), None)
+def get_project(project_id: str, db: Session = Depends(get_db)):
+    p = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
     if not p:
-        raise HTTPException(status_code=404, detail=f"Projet introuvable : {project_id}")
-    return {**p, "members": [{"user_id": "u_dev1", "name": "Chelle Zakariae", "role": p["role"]}]}
+        # fallback to in-memory
+        p_mem = next((x for x in DB["projects"] if x["id"] == project_id), None)
+        if not p_mem:
+            raise HTTPException(status_code=404, detail=f"Projet introuvable : {project_id}")
+        return {**p_mem, "members": [{"user_id": "u_dev1", "name": "Chelle Zakariae", "role": p_mem["role"]}]}
+    return {
+        "id": p.id,
+        "name": p.name,
+        "role": p.role,
+        "created_at": p.created_at.isoformat() if hasattr(p.created_at, "isoformat") else str(p.created_at),
+        "members": [{"user_id": "u_dev1", "name": "Chelle Zakariae", "role": p.role}]
+    }
+
+@app.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Projects"])
+def delete_project(project_id: str, db: Session = Depends(get_db)):
+    p = db.query(ProjectModel).filter(ProjectModel.id == project_id).first()
+    if p:
+        db.delete(p)
+        db.commit()
+    DB["projects"] = [x for x in DB["projects"] if x["id"] != project_id]
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # -------------------------------------------------------------
-# Datasets Endpoints
+# Datasets Endpoints (PostgreSQL CRUD)
 # -------------------------------------------------------------
 @app.get("/datasets", response_model=List[DatasetRow], tags=["Datasets"])
-def list_datasets(project_id: Optional[str] = None):
+def list_datasets(project_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(DatasetModel)
+    if project_id:
+        query = query.filter(DatasetModel.project_id == project_id)
+    datasets = query.all()
+    if not datasets and DB.get("datasets"):
+        results = []
+        for d in DB["datasets"]:
+            if project_id and d["project_id"] != project_id:
+                continue
+            versions = [v for v in DB["versions"] if v["dataset_id"] == d["id"]]
+            last_v = versions[-1] if versions else None
+            results.append(DatasetRow(
+                id=d["id"],
+                project_id=d["project_id"],
+                name=d["name"],
+                latest_version_id=last_v["id"] if last_v else None,
+                rows=last_v["rows"] if last_v else 0,
+                columns=len(last_v["schema"]) if last_v else 0,
+                status=last_v["status"] if last_v else "ready",
+                created_at=last_v["created_at"] if last_v else None
+            ))
+        return results
+
     results = []
-    for d in DB["datasets"]:
-        if project_id and d["project_id"] != project_id:
-            continue
-        versions = [v for v in DB["versions"] if v["dataset_id"] == d["id"]]
-        last_v = versions[-1] if versions else None
+    for d in datasets:
+        last_v = db.query(DatasetVersionModel).filter(DatasetVersionModel.dataset_id == d.id).order_by(DatasetVersionModel.version.desc()).first()
         results.append(DatasetRow(
-            id=d["id"],
-            project_id=d["project_id"],
-            name=d["name"],
-            latest_version_id=last_v["id"] if last_v else None,
-            rows=last_v["rows"] if last_v else 0,
-            columns=len(last_v["schema"]) if last_v else 0,
-            status=last_v["status"] if last_v else "ready",
-            created_at=last_v["created_at"] if last_v else None
+            id=d.id,
+            project_id=d.project_id,
+            name=d.name,
+            latest_version_id=last_v.id if last_v else None,
+            rows=last_v.num_rows if last_v else 0,
+            columns=last_v.num_columns if last_v else 0,
+            status=last_v.status if last_v else "ready",
+            created_at=last_v.created_at.isoformat() if last_v and hasattr(last_v.created_at, "isoformat") else None
         ))
     return results
 
 @app.post("/datasets", response_model=DatasetImportResponse, status_code=status.HTTP_202_ACCEPTED, tags=["Datasets"])
-async def import_dataset(file: UploadFile = File(...), project_id: str = Form(...)):
+async def import_dataset(file: UploadFile = File(...), project_id: str = Form(...), db: Session = Depends(get_db)):
     ds_id = f"ds_{uuid.uuid4().hex[:8]}"
     v_id = f"dsv_{uuid.uuid4().hex[:8]}"
     job_id = f"job_{uuid.uuid4().hex[:8]}"
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now = datetime.datetime.now(datetime.timezone.utc)
     
     content = await file.read()
     text = content.decode("utf-8", errors="replace")
@@ -205,6 +280,25 @@ async def import_dataset(file: UploadFile = File(...), project_id: str = Form(..
     else:
         schema_cols = [{"name": "col1", "dtype": "string", "nullable": False}]
 
+    ds = DatasetModel(id=ds_id, project_id=project_id, name=file.filename, created_at=now)
+    dv = DatasetVersionModel(
+        id=v_id,
+        dataset_id=ds_id,
+        project_id=project_id,
+        name=file.filename,
+        version=1,
+        checksum=f"sha256:{uuid.uuid4().hex[:12]}",
+        schema_json=schema_cols,
+        num_rows=max(len(lines) - 1, 0),
+        num_columns=len(schema_cols),
+        status="ready",
+        uri=f"s3://datasets/{project_id}/{file.filename}",
+        created_at=now
+    )
+    db.add(ds)
+    db.add(dv)
+    db.commit()
+
     DB["datasets"].append({"id": ds_id, "project_id": project_id, "name": file.filename})
     DB["versions"].append({
         "id": v_id,
@@ -212,11 +306,11 @@ async def import_dataset(file: UploadFile = File(...), project_id: str = Form(..
         "project_id": project_id,
         "name": file.filename,
         "version": 1,
-        "checksum": f"sha256:{uuid.uuid4().hex[:12]}",
+        "checksum": dv.checksum,
         "schema": schema_cols,
-        "rows": max(len(lines) - 1, 0),
-        "uri": f"s3://datasets/{project_id}/{file.filename}",
-        "created_at": now,
+        "rows": dv.num_rows,
+        "uri": dv.uri,
+        "created_at": now.isoformat(),
         "status": "ready",
         "job_id": job_id
     })
@@ -225,12 +319,32 @@ async def import_dataset(file: UploadFile = File(...), project_id: str = Form(..
     return DatasetImportResponse(dataset_id=ds_id, version_id=v_id, job_id=job_id)
 
 @app.get("/datasets/{id}", response_model=DatasetDetail, tags=["Datasets"])
-def get_dataset(id: str):
-    d = next((x for x in DB["datasets"] if x["id"] == id), None)
+def get_dataset(id: str, db: Session = Depends(get_db)):
+    d = db.query(DatasetModel).filter(DatasetModel.id == id).first()
     if not d:
-        raise HTTPException(status_code=404, detail=f"Dataset introuvable : {id}")
-    versions = [DatasetVersion(**v) for v in DB["versions"] if v["dataset_id"] == id]
-    return DatasetDetail(id=d["id"], name=d["name"], project_id=d["project_id"], versions=versions)
+        d_mem = next((x for x in DB["datasets"] if x["id"] == id), None)
+        if not d_mem:
+            raise HTTPException(status_code=404, detail=f"Dataset introuvable : {id}")
+        versions = [DatasetVersion(**v) for v in DB["versions"] if v["dataset_id"] == id]
+        return DatasetDetail(id=d_mem["id"], name=d_mem["name"], project_id=d_mem["project_id"], versions=versions)
+    
+    versions_db = db.query(DatasetVersionModel).filter(DatasetVersionModel.dataset_id == id).order_by(DatasetVersionModel.version.asc()).all()
+    vers = []
+    for v in versions_db:
+        vers.append(DatasetVersion(
+            id=v.id,
+            dataset_id=v.dataset_id,
+            project_id=v.project_id,
+            name=v.name,
+            version=v.version,
+            checksum=v.checksum,
+            schema=[DatasetColumn(**c) for c in (v.schema_json or [])],
+            rows=v.num_rows,
+            uri=v.uri or f"s3://datasets/{id}/{v.name}",
+            created_at=v.created_at.isoformat() if hasattr(v.created_at, "isoformat") else str(v.created_at),
+            status=v.status or "ready"
+        ))
+    return DatasetDetail(id=d.id, name=d.name, project_id=d.project_id, versions=vers)
 
 @app.get("/datasets/{id}/preview", response_model=Preview, tags=["Datasets"])
 def preview_dataset(id: str, dataset_version_id: Optional[str] = None, limit: int = 25, offset: int = 0):
