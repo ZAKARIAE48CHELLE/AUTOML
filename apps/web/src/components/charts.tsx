@@ -1,0 +1,11 @@
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
+
+const C = { a: '#3F6BA3', b: '#E08A2E' }
+export const CurveChart = ({ data }: { data: { epoch: number; train: number; validation: number }[] }) => (
+  <div className="h-56"><ResponsiveContainer><LineChart data={data} margin={{ left: -10, right: 8, top: 8 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="epoch" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} /><Tooltip /><Legend wrapperStyle={{ fontSize: 12 }} /><Line type="monotone" dataKey="train" name="Apprentissage" stroke={C.a} dot={false} strokeWidth={2} /><Line type="monotone" dataKey="validation" name="Validation" stroke={C.b} dot={false} strokeWidth={2} /></LineChart></ResponsiveContainer></div>)
+export const Histogram = ({ data }: { data: { bin: string; count: number }[] }) => (
+  <div className="h-32"><ResponsiveContainer><BarChart data={data} margin={{ left: -20, right: 4 }}><XAxis dataKey="bin" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="count" name="Effectif" fill={C.a} radius={[2, 2, 0, 0]} /></BarChart></ResponsiveContainer></div>)
+export const TrialsChart = ({ data }: { data: { n: number; value: number }[] }) => (
+  <div className="h-48"><ResponsiveContainer><LineChart data={data} margin={{ left: -10, right: 8, top: 8 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="n" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} /><Tooltip /><Line type="monotone" dataKey="value" name="Score" stroke={C.a} strokeWidth={2} /></LineChart></ResponsiveContainer></div>)
+export const MetricBars = ({ rows, keys }: { rows: Record<string, any>[]; keys: string[] }) => (
+  <div className="h-64"><ResponsiveContainer><BarChart data={rows} margin={{ left: -10, right: 8 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} domain={[0, 1]} /><Tooltip /><Legend wrapperStyle={{ fontSize: 12 }} />{keys.map((k, i) => <Bar key={k} dataKey={k} fill={i ? C.b : C.a} radius={[2, 2, 0, 0]} />)}</BarChart></ResponsiveContainer></div>)

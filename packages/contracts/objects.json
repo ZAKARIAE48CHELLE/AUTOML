@@ -1,0 +1,157 @@
+[
+  {
+    "name": "DatasetVersion",
+    "owner": "E1",
+    "fields": "id, project_id, checksum, schema, uri, created_at"
+  },
+  {
+    "name": "DataProfile",
+    "owner": "E1",
+    "fields": "dataset_version_id, columns, statistics, alerts, computed_by (version du moteur)"
+  },
+  {
+    "name": "SplitSpec",
+    "owner": "E1",
+    "fields": "strategy (random, stratified, group, time), test_ratio, cv_folds (≥ 1), val_ratio (si cv_folds = 1), seed, target, group_column, time_column"
+  },
+  {
+    "name": "SplitVersion",
+    "owner": "E1",
+    "fields": "id, dataset_version_id, split_spec, checksum, effectifs, distribution_cible, uri_indices (accès au test réservé à l'évaluation finale)"
+  },
+  {
+    "name": "PreprocessStep",
+    "owner": "E1",
+    "fields": "type, columns, params"
+  },
+  {
+    "name": "PreprocessSpec",
+    "owner": "E1",
+    "fields": "id, version, dataset_version_id, steps, content_hash (aucun artefact ajusté)"
+  },
+  {
+    "name": "ErrorModel",
+    "owner": "Socle (E1)",
+    "fields": "code, message, details, request_id"
+  },
+  {
+    "name": "ValidationReport",
+    "owner": "Socle (E1)",
+    "fields": "subject{kind, id, version}, content_hash, status (ok, warning, error), layers[{layer, status, issues[{code, severity, node_id, path, message, hint}]}], catalog_version"
+  },
+  {
+    "name": "AuditEvent",
+    "owner": "Socle (E1)",
+    "fields": "id, project_id, actor{type, id}, ts, action (AuditAction), resource_ref, outcome, reason, approval_id, request_id"
+  },
+  {
+    "name": "ExecutionRef",
+    "owner": "Socle (E1)",
+    "fields": "execution_id, node_id, attempt"
+  },
+  {
+    "name": "ModelSpec",
+    "owner": "E2",
+    "fields": "id, version, family, task, modality, params_schema, dependencies, determinism (exact ou tolérance)"
+  },
+  {
+    "name": "TrainingConfig",
+    "owner": "E2",
+    "fields": "split_id, preprocess_spec_id, model_id, params, primary_metric, direction, seed"
+  },
+  {
+    "name": "TrainingJob",
+    "owner": "E2",
+    "fields": "id, execution_ref, status (JobStatus), progress, error_code, run_id"
+  },
+  {
+    "name": "ExperimentRun",
+    "owner": "E2",
+    "fields": "id, config_hash, protocol_hash, metrics (validation croisée), test_metrics (si test_evaluated), artifacts, environment, mlflow_run_id, test_evaluated"
+  },
+  {
+    "name": "ModelArtifact",
+    "owner": "E2",
+    "fields": "id, run_id, format (mlflow-pyfunc), contenu (modèle + préprocesseur ajusté), input_schema (colonnes brutes), signature, environment (requirements verrouillés), checksum"
+  },
+  {
+    "name": "Leaderboard",
+    "owner": "E2",
+    "fields": "protocol_hash, primary_metric, direction, entrées[{run_id, métriques, rang}]"
+  },
+  {
+    "name": "ModelVersion",
+    "owner": "E2",
+    "fields": "id, name, version, run_id, alias, artifact_ref, created_at"
+  },
+  {
+    "name": "GoalSpec",
+    "owner": "E3",
+    "fields": "task, target, objective{primary_metric, direction}, constraints, ambiguities"
+  },
+  {
+    "name": "PlanProposal",
+    "owner": "E3",
+    "fields": "id, goal_id, workflow_version_id, rationale par nœud, assumptions, warnings, evidence_refs, required_approvals, validation_report_ref"
+  },
+  {
+    "name": "Explanation",
+    "owner": "E3",
+    "fields": "subject_ref, texte, evidence_refs (obligatoires pour tout chiffre)"
+  },
+  {
+    "name": "ToolInvocation",
+    "owner": "E3",
+    "fields": "name, typed_args, operation_class, authorization, result_ref"
+  },
+  {
+    "name": "EvidenceRef",
+    "owner": "E3",
+    "fields": "source_type, source_id, summary"
+  },
+  {
+    "name": "ConversationState",
+    "owner": "E3",
+    "fields": "project_id, turns, context_refs, mode"
+  },
+  {
+    "name": "DecisionAudit",
+    "owner": "E3",
+    "fields": "vue filtrée des AuditEvent de l'assistant : propositions, appels d'outils, refus, preuves"
+  },
+  {
+    "name": "NodeType",
+    "owner": "E4",
+    "fields": "type, version, owner, input_ports, output_ports, params_schema, adapter, export_template"
+  },
+  {
+    "name": "WorkflowSpec",
+    "owner": "E4",
+    "fields": "schema_version, catalog_version, nodes[{id, type, type_version, params, ui}], edges[{id, from{node, port}, to{node, port}}], metadata{task, target, objective, origin, goal_id}"
+  },
+  {
+    "name": "WorkflowVersion",
+    "owner": "E4",
+    "fields": "id, workflow_id, parent_version_id, content_hash (hors ui), author{type, id}, created_at, spec (immuable)"
+  },
+  {
+    "name": "Approval",
+    "owner": "E4",
+    "fields": "id, project_id, user_id, workflow_version_id, content_hash, scope (version ou lignée), operation_classes, budget, mode, method (explicit_click ou chat_confirm), expires_at, status"
+  },
+  {
+    "name": "Execution",
+    "owner": "E4",
+    "fields": "id, workflow_version_id, approval_ids, status (ExecutionStatus), reuse_from, node_runs[{node_id, attempt, status, cached, job_ref, error, result_refs}]"
+  },
+  {
+    "name": "ExportManifest",
+    "owner": "E4",
+    "fields": "export_id, workflow_version_id, content_hash, execution_id, dataset_refs, split_refs, preprocess_spec, model_configs, seeds, environment (lockfile), code[{path, sha256, template_id}], artifacts[{ref, checksum, included}], limitations, integrity"
+  },
+  {
+    "name": "PromotionRecord",
+    "owner": "E4",
+    "fields": "id, model_version_id, alias, approval_id, actor, checks (test_evaluated, reproductibilité), created_at"
+  }
+]

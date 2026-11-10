@@ -1,0 +1,27 @@
+{
+  "type": "eval.final_test",
+  "version": "1.0",
+  "label": "Test final",
+  "owner": "E2",
+  "operation_class": "L3",
+  "adapter": "POST /experiments/{run_id}/final-evaluation",
+  "input_ports": [
+    {
+      "name": "run",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "run",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "properties": {}
+  },
+  "params_doc": "— (usage unique par run, approbation L3)"
+}

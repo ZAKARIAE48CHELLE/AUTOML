@@ -1,0 +1,88 @@
+{
+  "type": "data.split",
+  "version": "1.0",
+  "label": "Split",
+  "owner": "E1",
+  "operation_class": "L1",
+  "adapter": "POST /splits",
+  "input_ports": [
+    {
+      "name": "dataset",
+      "type": "Dataset",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "split",
+      "type": "Split",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "strategy",
+      "test_ratio",
+      "cv_folds",
+      "seed",
+      "target"
+    ],
+    "properties": {
+      "strategy": {
+        "type": "string",
+        "title": "Stratégie",
+        "enum": [
+          "random",
+          "stratified",
+          "group",
+          "time"
+        ],
+        "default": "stratified"
+      },
+      "test_ratio": {
+        "type": "number",
+        "title": "Part du jeu de test",
+        "minimum": 0.05,
+        "maximum": 0.5,
+        "default": 0.2
+      },
+      "cv_folds": {
+        "type": "integer",
+        "title": "Plis de validation croisée",
+        "minimum": 1,
+        "maximum": 10,
+        "default": 5
+      },
+      "val_ratio": {
+        "type": "number",
+        "title": "Part de validation (si 1 pli)",
+        "minimum": 0.05,
+        "maximum": 0.4,
+        "default": 0.2
+      },
+      "seed": {
+        "type": "integer",
+        "title": "Graine",
+        "minimum": 0,
+        "default": 42
+      },
+      "target": {
+        "type": "string",
+        "title": "Colonne cible",
+        "x-source": "columns"
+      },
+      "group_column": {
+        "type": "string",
+        "title": "Colonne de groupe",
+        "x-source": "columns"
+      },
+      "time_column": {
+        "type": "string",
+        "title": "Colonne temporelle",
+        "x-source": "columns"
+      }
+    }
+  },
+  "params_doc": "SplitSpec (stratégie, test_ratio, cv_folds, val_ratio, seed, cible, colonnes groupe/temps)"
+}

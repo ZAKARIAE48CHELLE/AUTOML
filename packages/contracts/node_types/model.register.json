@@ -1,0 +1,36 @@
+{
+  "type": "model.register",
+  "version": "1.0",
+  "label": "Enregistrer le modèle",
+  "owner": "E2",
+  "operation_class": "L2",
+  "adapter": "POST /models/registry",
+  "input_ports": [
+    {
+      "name": "run",
+      "type": "ModelRun",
+      "multiple": false
+    }
+  ],
+  "output_ports": [
+    {
+      "name": "version",
+      "type": "ModelVersion",
+      "multiple": false
+    }
+  ],
+  "params_schema": {
+    "type": "object",
+    "required": [
+      "name"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "title": "Nom du modèle",
+        "minLength": 1
+      }
+    }
+  },
+  "params_doc": "name"
+}

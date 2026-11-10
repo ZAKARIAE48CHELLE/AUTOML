@@ -1,0 +1,30 @@
+# Docker Desktop : `docker compose up --build`  → http://localhost:8080
+# Développement avec rechargement à chaud : `docker compose --profile dev up --build web-dev` → http://localhost:5173
+name: ai-studio
+services:
+  web:
+    build:
+      context: .
+      args:
+        # Modules servis par le mock. Retirer un module de la liste = ses appels partent vers VITE_API_BASE_URL.
+        VITE_MOCK_MODULES: ${VITE_MOCK_MODULES:-data,training,assistant,studio}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  web-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_MOCK_MODULES: ${VITE_MOCK_MODULES:-data,training,assistant,studio}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      CHOKIDAR_USEPOLLING: "true"   # nécessaire pour le rechargement à chaud sous Windows
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - /app/node_modules          # garde les dépendances de l'image

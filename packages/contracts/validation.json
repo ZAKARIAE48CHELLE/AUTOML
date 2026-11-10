@@ -1,0 +1,66 @@
+{
+  "rules": [
+    {
+      "id": "V1",
+      "text": "Graphe acyclique (DAG)."
+    },
+    {
+      "id": "V2",
+      "text": "Chaque arête relie des ports de même type ; la cardinalité des ports est respectée (seul eval.compare accepte plusieurs arêtes entrantes)."
+    },
+    {
+      "id": "V3",
+      "text": "Toutes les entrées obligatoires de chaque nœud sont connectées."
+    },
+    {
+      "id": "V4",
+      "text": "Les paramètres de chaque nœud sont valides vis-à-vis du JSON Schema de sa version de type (champ requis, plage, énumération)."
+    },
+    {
+      "id": "V5",
+      "text": "Tous les nœuds train.* d'un même graphe cohérent partagent la même lignée de split ; la PreprocessSpec est liée à ce split."
+    },
+    {
+      "id": "V6",
+      "text": "Les entrées d'un eval.compare partagent split, primary_metric et protocole de validation (protocol_hash identique)."
+    },
+    {
+      "id": "V7",
+      "text": "Un eval.final_test doit se trouver en aval d'un eval.compare (sélection sur validation d'abord, test ensuite)."
+    },
+    {
+      "id": "V8",
+      "text": "Un model.register doit se trouver en aval d'un eval.final_test."
+    },
+    {
+      "id": "V9",
+      "text": "Tous les types de nœud existent dans la version du catalogue référencée par le workflow."
+    },
+    {
+      "id": "V10",
+      "text": "Limites : un seul data.dataset par workflow (MVP), 40 nœuds maximum, budgets de tuning inférieurs aux plafonds de GET /training/resources."
+    }
+  ],
+  "layers": [
+    {
+      "layer": "structure",
+      "owner": "E4",
+      "text": "Règles V1 à V10 (calcul local, déterministe)."
+    },
+    {
+      "layer": "data",
+      "owner": "E1",
+      "text": "POST /preprocessing/validate : colonnes existantes, types compatibles, fuites courantes, cohérence avec le split."
+    },
+    {
+      "layer": "training",
+      "owner": "E2",
+      "text": "POST /training/validate : paramètres dans les plages, compatibilité modèle/tâche/données, métrique valide pour la tâche, ressources."
+    },
+    {
+      "layer": "policy",
+      "owner": "E3 (bibliothèque packages/policy exécutée par E4)",
+      "text": "Opérations autorisées dans le mode courant, approbations requises, budgets."
+    }
+  ]
+}
