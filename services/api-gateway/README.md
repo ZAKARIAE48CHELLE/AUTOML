@@ -17,3 +17,4 @@ The reverse-proxy entrypoint for the AI Studio microservices architecture.
   - `/health/e2` (Training service)
   - `/health/e3` (Assistant service)
   - `/health/e4` (Studio service)
+

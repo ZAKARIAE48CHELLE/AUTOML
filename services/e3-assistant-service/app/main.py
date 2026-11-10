@@ -257,3 +257,4 @@ def get_policy_matrix():
             PolicyMatrixRow(cls="L3", auto="approbation explicite individuelle", guided="approbation explicite individuelle", expert="approbation explicite individuelle")
         ]
     )
+

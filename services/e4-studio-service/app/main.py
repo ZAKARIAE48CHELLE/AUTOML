@@ -526,3 +526,4 @@ def promote_model(req: PromotionRequest):
 @app.get("/registry/promotions", response_model=List[PromotionRecord], tags=["Registry"])
 def list_promotions(model_name: Optional[str] = None):
     return PROMOTIONS_DB
+

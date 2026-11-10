@@ -386,3 +386,4 @@ def get_split(id: str):
     if not s:
         raise HTTPException(status_code=404, detail=f"Split introuvable : {id}")
     return SplitVersion(**s)
+

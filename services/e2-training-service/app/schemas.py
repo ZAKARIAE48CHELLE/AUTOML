@@ -158,3 +158,4 @@ class PredictResult(BaseModel):
     probabilities: Optional[List[List[float]]] = None
     classes: Optional[List[str]] = None
     schema_warnings: List[str] = []
+

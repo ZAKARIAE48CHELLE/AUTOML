@@ -323,3 +323,4 @@ def predict(req: PredictRequest):
         classes=["No", "Yes"],
         schema_warnings=[]
     )
+

@@ -262,3 +262,4 @@ def compute_canonical_hash(spec: Dict[str, Any]) -> str:
     }
     dumped = json.dumps(canonical_obj, sort_keys=True, separators=(',', ':'))
     return f"sha256:{hashlib.sha256(dumped.encode('utf-8')).hexdigest()}"
+
