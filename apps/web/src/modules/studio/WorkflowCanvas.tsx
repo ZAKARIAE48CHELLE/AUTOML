@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import { ReactFlow, Background, Controls, Handle, Position, ReactFlowProvider, type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps } from '@xyflow/react'
+import { useCallback, useEffect, useState } from 'react'
+import { ReactFlow, Background, Controls, Handle, Position, ReactFlowProvider, applyNodeChanges, applyEdgeChanges, type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps } from '@xyflow/react'
 import type { WorkflowSpec, NodeStatus, PortType } from '@contracts/src'
 import { NODE_TYPE_BY_ID } from '@contracts/src'
 import { clsx } from '@/lib/format'
@@ -33,13 +33,48 @@ const summarize = (type: string, p: Record<string, any>): string => {
 }
 interface Props { spec: WorkflowSpec; readOnly?: boolean; onChange?: (s: WorkflowSpec) => void; selected?: string | null; onSelect?: (id: string | null) => void; severity?: Record<string, Sev>; status?: Record<string, { status: NodeStatus; cached?: boolean }>; height?: number }
 
+type SyncArgs = Pick<Props, 'spec' | 'readOnly' | 'selected' | 'onSelect' | 'severity' | 'status'>
+
+/**
+ * Fusionne la spec dans les nœuds React Flow existants au lieu de les recréer.
+ * Les champs internes (`measured`, `dragging`…) doivent être conservés : sans `measured`, React Flow
+ * réinitialise les positions des poignées (handleBounds) — les liens disparaissent et les connexions échouent.
+ */
+function syncNodes(prev: Node<NData>[], { spec, readOnly, selected, onSelect, severity, status }: SyncArgs): Node<NData>[] {
+  const old = new Map(prev.map((n) => [n.id, n]))
+  return spec.nodes.map((n, i) => {
+    const o = old.get(n.id)
+    // Lecture seule : déplacement purement visuel (spec intacte). Édition : la spec fait foi, sauf pendant le glissement.
+    const position = o && (readOnly || o.dragging) ? o.position : n.ui ?? o?.position ?? { x: i * 220, y: 0 }
+    return {
+      ...o, id: n.id, type: 'studio', position, draggable: true, deletable: !readOnly,
+      selected: onSelect ? n.id === selected : o?.selected ?? false,
+      data: { type: n.type, id: n.id, severity: severity?.[n.id], status: status?.[n.id]?.status, cached: status?.[n.id]?.cached, summary: summarize(n.type, n.params) },
+    }
+  })
+}
+
+function syncEdges(prev: Edge[], { spec, readOnly, status }: SyncArgs): Edge[] {
+  const old = new Map(prev.map((e) => [e.id, e]))
+  return spec.edges.map((e) => {
+    const t = NODE_TYPE_BY_ID[spec.nodes.find((n) => n.id === e.from.node)?.type ?? '']?.output_ports.find((q) => q.name === e.from.port)?.type
+    const running = status?.[e.from.node]?.status === 'running'
+    return { ...old.get(e.id), id: e.id, source: e.from.node, sourceHandle: e.from.port, target: e.to.node, targetHandle: e.to.port, deletable: !readOnly, style: { stroke: t ? PORT_COLOR[t] : '#94a3b8', strokeWidth: 2 }, animated: running, className: running ? 'running' : undefined }
+  })
+}
+
 export function WorkflowCanvas(p: Props) { return <ReactFlowProvider><Inner {...p} /></ReactFlowProvider> }
 function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status, height = 520 }: Props) {
-  const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({}) // positions locales (lecture seule : déplacement visuel, spec intact)
-  const nodes: Node<NData>[] = useMemo(() => spec.nodes.map((n, i) => ({ id: n.id, type: 'studio', position: (readOnly ? pos[n.id] : undefined) ?? n.ui ?? { x: i * 220, y: 0 }, selected: n.id === selected, draggable: true, deletable: !readOnly, data: { type: n.type, id: n.id, severity: severity?.[n.id], status: status?.[n.id]?.status, cached: status?.[n.id]?.cached, summary: summarize(n.type, n.params) } })), [spec.nodes, selected, severity, status, readOnly, pos])
-  const edges: Edge[] = useMemo(() => spec.edges.map((e) => { const t = NODE_TYPE_BY_ID[spec.nodes.find((n) => n.id === e.from.node)?.type ?? '']?.output_ports.find((q) => q.name === e.from.port)?.type; return { id: e.id, source: e.from.node, sourceHandle: e.from.port, target: e.to.node, targetHandle: e.to.port, deletable: !readOnly, style: { stroke: t ? PORT_COLOR[t] : '#94a3b8', strokeWidth: 2 }, animated: status?.[e.from.node]?.status === 'running', className: status?.[e.from.node]?.status === 'running' ? 'running' : undefined } }), [spec, readOnly, status])
+  const args: SyncArgs = { spec, readOnly, selected, onSelect, severity, status }
+  // Flux contrôlé : les nœuds/liens vivent dans un état local auquel on applique TOUS les changements React Flow
+  // (dimensions, sélection, glissement), puis la spec y est fusionnée quand elle change.
+  const [nodes, setNodes] = useState<Node<NData>[]>(() => syncNodes([], args))
+  const [edges, setEdges] = useState<Edge[]>(() => syncEdges([], args))
+  useEffect(() => { setNodes((prev) => syncNodes(prev, args)) }, [spec.nodes, selected, severity, status, readOnly, onSelect]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setEdges((prev) => syncEdges(prev, args)) }, [spec, readOnly, status]) // eslint-disable-line react-hooks/exhaustive-deps
   const onNodesChange = useCallback((chs: NodeChange[]) => {
-    if (readOnly || !onChange) { chs.forEach((c) => { if (c.type === 'select' && c.selected) onSelect?.(c.id); if (c.type === 'position' && c.position) setPos((p) => ({ ...p, [c.id]: c.position! })) }); return }
+    setNodes((ns) => applyNodeChanges(chs, ns) as Node<NData>[])
+    if (readOnly || !onChange) { chs.forEach((c) => { if (c.type === 'select' && c.selected) onSelect?.(c.id) }); return }
     let next = spec; let changed = false
     for (const c of chs) {
       if (c.type === 'position' && c.position) { next = { ...next, nodes: next.nodes.map((n) => (n.id === c.id ? { ...n, ui: { x: Math.round(c.position!.x), y: Math.round(c.position!.y) } } : n)) }; changed = true }
@@ -49,6 +84,7 @@ function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status,
     if (changed) onChange(next)
   }, [spec, readOnly, onChange, onSelect, selected])
   const onEdgesChange = useCallback((chs: EdgeChange[]) => {
+    setEdges((es) => applyEdgeChanges(chs, es)) // sélection des liens (nécessaire pour les supprimer au clavier)
     if (readOnly || !onChange) return
     const rm = chs.filter((c) => c.type === 'remove').map((c) => (c as { id: string }).id); if (rm.length) onChange({ ...spec, edges: spec.edges.filter((e) => !rm.includes(e.id)) })
   }, [spec, readOnly, onChange])

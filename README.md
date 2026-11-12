@@ -21,12 +21,32 @@ The system is designed around a **human-in-the-loop approach**, allowing users t
 Frontend de la plateforme AutoML & Deep Learning assistée par IA (4 modules : Data E1, Training E2, Assistant E3, Studio E4).
 Il sert de contrat d'interface : le backend de chaque étudiant s'implémente derrière `apps/web/src/api/<module>.ts`.
 
-### Lancer avec Docker Desktop
+### Installation et mise à jour en une commande
 
-```bash
-docker compose up --build                           # http://localhost:8080 (build de production, nginx)
-docker compose --profile dev up --build web-dev    # http://localhost:5173 (rechargement à chaud)
+Seul prérequis : **Docker Desktop** démarré (Node 22 et Python 3.10+ sont optionnels, pour développer en local).
+
+```powershell
+.\setup.ps1          # Windows (PowerShell)
 ```
+```bash
+./setup.sh           # macOS / Linux / Git Bash
+```
+
+Le script : vérifie Docker, crée `.env` depuis `.env.example`, installe les dépendances locales (npm + `.venv` Python pour les tests),
+télécharge les images de base à jour, reconstruit les images, **supprime les anciens conteneurs et les remplace par des neufs**,
+attend que tous les services soient sains, puis nettoie les anciennes images. Relancez-le à tout moment pour tout remettre à jour.
+Les données de la base sont conservées.
+
+| Option (PowerShell / bash) | Effet |
+|---|---|
+| `-NoCache` / `--no-cache` | Reconstruit les images de zéro |
+| `-SkipLocal` / `--skip-local` | Docker uniquement (pas d'installation npm / Python locale) |
+| `-Dev` / `--dev` | Lance aussi le frontend en rechargement à chaud sur :5173 |
+| `-ResetData` / `--reset-data` | **Supprime toutes les données** (Postgres, pgAdmin) — demande confirmation (`-Yes` / `--yes` pour l'ignorer) |
+
+Adresses : application http://localhost:8080 · frontend seul http://localhost:8081 · docs API http://localhost:8001/docs (8002–8004) · pgAdmin http://localhost:5055 · Adminer http://localhost:8085
+
+Si PowerShell bloque le script : `powershell -ExecutionPolicy Bypass -File .\setup.ps1`.
 
 Sans Docker : `npm install && npm run dev` (Node 22).
 

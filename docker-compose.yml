@@ -31,12 +31,24 @@ services:
       context: ./services/api-gateway
     ports:
       - "8080:8080"
+    # Start routing only once every upstream answers its health check.
     depends_on:
-      - e1-data-service
-      - e2-training-service
-      - e3-assistant-service
-      - e4-studio-service
-      - web
+      e1-data-service:
+        condition: service_healthy
+      e2-training-service:
+        condition: service_healthy
+      e3-assistant-service:
+        condition: service_healthy
+      e4-studio-service:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   # -------------------------------------------------------------
@@ -54,6 +66,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   # -------------------------------------------------------------
   # E2: Model Training Service
@@ -70,6 +88,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   # -------------------------------------------------------------
   # E3: Agentic AI Assistant Service
@@ -86,6 +110,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   # -------------------------------------------------------------
   # E4: Visual Workflow Studio & MLOps Service
@@ -105,6 +135,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   # -------------------------------------------------------------
   # Frontend Web Client (Production Nginx on port 8081)
@@ -117,6 +153,12 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
     ports:
       - "8081:80"
+    # Faster than the Dockerfile's 30s default so the gateway does not wait on the first probe.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   # -------------------------------------------------------------
