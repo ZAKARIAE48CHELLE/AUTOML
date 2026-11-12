@@ -31,7 +31,9 @@ const summarize = (type: string, p: Record<string, any>): string => {
   if (type === 'model.register') return p.name ?? 'nom ?'
   return ''
 }
-interface Props { spec: WorkflowSpec; readOnly?: boolean; onChange?: (s: WorkflowSpec) => void; selected?: string | null; onSelect?: (id: string | null) => void; severity?: Record<string, Sev>; status?: Record<string, { status: NodeStatus; cached?: boolean }>; height?: number }
+interface Props { spec: WorkflowSpec; readOnly?: boolean; onChange?: (s: WorkflowSpec) => void; selected?: string | null; onSelect?: (id: string | null) => void; severity?: Record<string, Sev>; status?: Record<string, { status: NodeStatus; cached?: boolean }>; height?: number | string
+  /** Plein écran : sans bordure ni coins arrondis, contrôles de zoom centrés en bas (hors des panneaux latéraux). */
+  bare?: boolean }
 
 type SyncArgs = Pick<Props, 'spec' | 'readOnly' | 'selected' | 'onSelect' | 'severity' | 'status'>
 
@@ -64,7 +66,7 @@ function syncEdges(prev: Edge[], { spec, readOnly, status }: SyncArgs): Edge[] {
 }
 
 export function WorkflowCanvas(p: Props) { return <ReactFlowProvider><Inner {...p} /></ReactFlowProvider> }
-function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status, height = 520 }: Props) {
+function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status, height = 520, bare }: Props) {
   const args: SyncArgs = { spec, readOnly, selected, onSelect, severity, status }
   // Flux contrôlé : les nœuds/liens vivent dans un état local auquel on applique TOUS les changements React Flow
   // (dimensions, sélection, glissement), puis la spec y est fusionnée quand elle change.
@@ -101,9 +103,9 @@ function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status,
     onChange({ ...spec, edges: [...spec.edges, { id: `e${n}`, from: { node: c.source!, port: c.sourceHandle! }, to: { node: c.target!, port: c.targetHandle! } }] })
   }, [spec, readOnly, onChange, isValid])
   return (
-    <div style={{ height }} className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50" data-testid="canvas">
+    <div style={{ height }} className={clsx('overflow-hidden bg-slate-50', !bare && 'rounded-lg border border-slate-200')} data-testid="canvas">
       <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} isValidConnection={isValid} onPaneClick={() => onSelect?.(null)} nodesConnectable={!readOnly} elementsSelectable fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }} deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']} proOptions={{ hideAttribution: true }}>
-        <Background gap={18} color="#e2e8f0" /><Controls showInteractive={false} />
+        <Background gap={18} color="#e2e8f0" /><Controls showInteractive={false} {...(bare ? { position: 'bottom-center' as const, orientation: 'horizontal' as const } : {})} />
       </ReactFlow>
     </div>)
 }
