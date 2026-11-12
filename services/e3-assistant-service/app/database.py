@@ -2,6 +2,7 @@ import os
 import logging
 from typing import Generator, Dict, Any
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 logger = logging.getLogger(__name__)
@@ -97,11 +98,35 @@ def seed_initial_data(session: Session):
         session.rollback()
         logger.warning(f"Seeding failed in E3: {e}")
 
-def init_db():
+def ensure_database_exists() -> None:
+    """Create the service database on PostgreSQL if it is missing.
+
+    docker/postgres/init-db.sql only runs on a fresh volume, so a volume created
+    before that script existed would otherwise leave the service without a database.
+    """
+    url = make_url(DATABASE_URL)
+    if not url.drivername.startswith("postgresql") or not url.database:
+        return
+    admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT", pool_pre_ping=True)
     try:
+        with admin.connect() as conn:
+            exists = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": url.database}).scalar()
+            if not exists:
+                logger.info(f"Creating missing database {url.database}")
+                conn.execute(text(f'CREATE DATABASE "{url.database}"'))
+    finally:
+        admin.dispose()
+
+
+def init_db():
+    """Prepare the database. Raises on failure so the container restarts instead of serving 500s."""
+    try:
+        ensure_database_exists()
+        from . import models  # noqa: F401  (register tables on Base.metadata)
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables initialized successfully.")
         with SessionLocal() as session:
             seed_initial_data(session)
-    except Exception as e:
-        logger.warning(f"Database initialization warning: {e}")
+        logger.info("Database ready.")
+    except Exception:
+        logger.exception("Database initialization failed")
+        raise

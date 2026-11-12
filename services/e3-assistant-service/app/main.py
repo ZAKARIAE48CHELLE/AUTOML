@@ -1,10 +1,13 @@
 import datetime
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from .database import check_db_health, init_db
 from .models import ConversationModel, MessageModel, ProposalModel
 from .schemas import (
@@ -27,7 +30,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-init_db()
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,16 +40,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    code = "ERROR"
-    if exc.status_code == 404: code = "NOT_FOUND"
-    elif exc.status_code == 400: code = "BAD_REQUEST"
-    elif exc.status_code == 422: code = "VALIDATION_ERROR"
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": code, "message": str(exc.detail), "details": None, "request_id": f"req_{uuid.uuid4().hex[:8]}"}
-    )
+# Uniform ApiError responses: {code, message, details, request_id}
+_DEFAULT_CODES = {400: "BAD_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN", 404: "NOT_FOUND",
+                  405: "METHOD_NOT_ALLOWED", 409: "CONFLICT", 422: "VALIDATION_ERROR"}
+
+
+def _rid() -> str:
+    return f"req_{uuid.uuid4().hex[:8]}"
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if isinstance(exc.detail, dict) and "code" in exc.detail:
+        body = {"code": exc.detail["code"], "message": exc.detail.get("message", ""), "details": exc.detail.get("details")}
+    else:
+        body = {"code": _DEFAULT_CODES.get(exc.status_code, "ERROR"), "message": str(exc.detail), "details": None}
+    return JSONResponse(status_code=exc.status_code, content={**body, "request_id": _rid()}, headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [{"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"code": "VALIDATION_ERROR", "message": "Requête invalide.",
+                                                  "details": {"errors": errors}, "request_id": _rid()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"code": "INTERNAL", "message": "Erreur interne du service.",
+                                                  "details": None, "request_id": _rid()})
 
 PROJECT_MODES = {
     "p_churn": "guided"

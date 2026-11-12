@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Common error schema
 class ApiErrorDetail(BaseModel):
@@ -62,8 +62,7 @@ class DatasetVersion(BaseModel):
     status: Literal["importing", "ready", "failed"] = "ready"
     job_id: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class DatasetRow(BaseModel):
     id: str
@@ -176,21 +175,44 @@ class PreprocessSpec(BaseModel):
     steps: List[PreprocessStep]
     content_hash: str
 
+class PreprocessSteps(BaseModel):
+    steps: List[PreprocessStep]
+
+class PreprocessSpecCreate(BaseModel):
+    dataset_version_id: str
+    spec: PreprocessSteps
+
+class PreprocessValidateRequest(BaseModel):
+    dataset_version_id: str
+    spec: PreprocessSteps
+    target: Optional[str] = None
+    split_id: Optional[str] = None
+
+class SpecPreviewRequest(BaseModel):
+    split_id: Optional[str] = None
+
+class ProfileRequest(BaseModel):
+    dataset_version_id: Optional[str] = None
+
 # Splits
 class SplitSpec(BaseModel):
     strategy: Literal["random", "stratified", "group", "time"] = "stratified"
-    test_ratio: float = 0.2
-    cv_folds: int = 5
-    val_ratio: Optional[float] = 0.1
+    test_ratio: float = Field(0.2, gt=0, lt=1)
+    cv_folds: int = Field(5, ge=1)
+    val_ratio: Optional[float] = Field(0.1, ge=0, lt=1)
     seed: int = 42
     target: str
     group_column: Optional[str] = None
     time_column: Optional[str] = None
 
+class SplitCreate(BaseModel):
+    dataset_version_id: str
+    split_spec: SplitSpec
+
 class SplitTargetDistribution(BaseModel):
     label: str
-    train: int
-    test: int
+    train: float  # share of the label within the train partition (0..1), as in the contract mock
+    test: float
 
 class SplitCounts(BaseModel):
     train: int

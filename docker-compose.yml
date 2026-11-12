@@ -98,6 +98,9 @@ services:
     environment:
       - PORT=8004
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e4
+      # Governance mode (E3) and model registry (E2) lookups
+      - E2_SERVICE_URL=http://e2-training-service:8002
+      - E3_SERVICE_URL=http://e3-assistant-service:8003
     depends_on:
       postgres:
         condition: service_healthy

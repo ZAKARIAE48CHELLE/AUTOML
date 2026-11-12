@@ -1,7 +1,7 @@
 import hashlib
 import json
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Mode = Literal["auto", "guided", "expert"]
 OpClass = Literal["L0", "L1", "L2", "L3"]
@@ -55,8 +55,7 @@ class WorkflowEdge(BaseModel):
     from_: PortRef = Field(alias="from")
     to: PortRef
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class WorkflowMetadata(BaseModel):
     task: Task
@@ -161,7 +160,8 @@ class ApprovalCreateRequest(BaseModel):
     node_ids: Optional[List[str]] = None
     budget: Optional[BudgetSpec] = None
     method: Literal["explicit_click", "chat_confirm"] = "explicit_click"
-    scope: Literal["version", "lineage"] = "version"
+    # None = let the policy decide (auto-mode L2 plan approvals default to lineage scope).
+    scope: Optional[Literal["version", "lineage"]] = None
 
 class Approval(BaseModel):
     id: str

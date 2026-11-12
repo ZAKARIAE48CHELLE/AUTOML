@@ -1,10 +1,13 @@
 import datetime
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from .database import check_db_health, init_db
 from .models import ModelCatalogModel, TrainingJobModel
 from .schemas import (
@@ -26,7 +29,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-init_db()
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,16 +39,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    code = "ERROR"
-    if exc.status_code == 404: code = "NOT_FOUND"
-    elif exc.status_code == 400: code = "BAD_REQUEST"
-    elif exc.status_code == 422: code = "VALIDATION_ERROR"
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": code, "message": str(exc.detail), "details": None, "request_id": f"req_{uuid.uuid4().hex[:8]}"}
-    )
+# Uniform ApiError responses: {code, message, details, request_id}
+_DEFAULT_CODES = {400: "BAD_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN", 404: "NOT_FOUND",
+                  405: "METHOD_NOT_ALLOWED", 409: "CONFLICT", 422: "VALIDATION_ERROR"}
+
+
+def _rid() -> str:
+    return f"req_{uuid.uuid4().hex[:8]}"
+
+
+def api_error(status_code: int, code: str, message: str, details: Any = None) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={"code": code, "message": message, "details": details})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if isinstance(exc.detail, dict) and "code" in exc.detail:
+        body = {"code": exc.detail["code"], "message": exc.detail.get("message", ""), "details": exc.detail.get("details")}
+    else:
+        body = {"code": _DEFAULT_CODES.get(exc.status_code, "ERROR"), "message": str(exc.detail), "details": None}
+    return JSONResponse(status_code=exc.status_code, content={**body, "request_id": _rid()}, headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [{"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"code": "VALIDATION_ERROR", "message": "Requête invalide.",
+                                                  "details": {"errors": errors}, "request_id": _rid()})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"code": "INTERNAL", "message": "Erreur interne du service.",
+                                                  "details": None, "request_id": _rid()})
+
+MINIMIZE_METRICS = {"log_loss", "loss", "rmse", "mse", "mae"}
 
 MODELS_CATALOG = [
     {
@@ -186,7 +215,18 @@ JOBS_DB = {
         "metrics": {"accuracy": 0.879},
         "run_id": "run_xgb_01",
         "model_id": "model_xgb",
+        "project_id": "p_churn",
         "created_at": "2026-11-05T10:44:00Z"
+    }
+}
+
+STUDIES_DB = {
+    "study_01": {
+        "id": "study_01",
+        "job_id": "job_train_01",
+        "status": "succeeded",
+        "run_id": "run_xgb_01",
+        "trials": [{"n": 1, "value": 0.82}, {"n": 2, "value": 0.85}, {"n": 3, "value": 0.879}],
     }
 }
 
@@ -214,6 +254,8 @@ def get_catalog(task: Optional[str] = None, modality: Optional[str] = "tabular")
     res = []
     for m in MODELS_CATALOG:
         if task and task not in m["task"]:
+            continue
+        if modality and m.get("modality") != modality:
             continue
         res.append(ModelSpec(**m))
     return res
@@ -244,30 +286,32 @@ def validate_training(req: TrainingValidateRequest):
 # -------------------------------------------------------------
 @app.get("/training/jobs", response_model=List[TrainingJob], tags=["Training"])
 def list_training_jobs(project_id: Optional[str] = None):
-    return [TrainingJob(**j) for j in JOBS_DB.values()]
+    return [TrainingJob(**j) for j in JOBS_DB.values() if not project_id or j.get("project_id") == project_id]
 
 @app.get("/training/jobs/{id}", response_model=TrainingJob, tags=["Training"])
 def get_training_job(id: str):
     j = JOBS_DB.get(id)
     if not j:
-        raise HTTPException(status_code=404, detail=f"Job introuvable : {id}")
+        raise api_error(404, "NOT_FOUND", f"Job introuvable : {id}")
     return TrainingJob(**j)
 
 @app.get("/tuning/studies/{id}", response_model=Study, tags=["Tuning"])
 def get_study(id: str):
-    job = list(JOBS_DB.values())[0]
+    s = STUDIES_DB.get(id)
+    if not s:
+        raise api_error(404, "NOT_FOUND", f"Étude introuvable : {id}")
+    job = JOBS_DB.get(s["job_id"])
+    if job is None:
+        raise api_error(409, "JOB_MISSING", f"Le job {s['job_id']} de cette étude est introuvable.")
+    trials = [StudyTrial(**t) for t in s["trials"]]
     return Study(
-        id=id,
-        job_id=job["id"],
-        status="succeeded",
-        run_id="run_xgb_01",
-        trials=[
-            StudyTrial(n=1, value=0.82),
-            StudyTrial(n=2, value=0.85),
-            StudyTrial(n=3, value=0.879)
-        ],
-        best_trial=StudyTrial(n=3, value=0.879),
-        job=TrainingJob(**job)
+        id=s["id"],
+        job_id=s["job_id"],
+        status=s["status"],
+        run_id=s.get("run_id"),
+        trials=trials,
+        best_trial=max(trials, key=lambda t: t.value) if trials else None,
+        job=TrainingJob(**job),
     )
 
 # -------------------------------------------------------------
@@ -287,36 +331,45 @@ def list_experiments(project_id: Optional[str] = None, model_id: Optional[str] =
 def get_experiment_run(id: str):
     r = RUNS_DB.get(id)
     if not r:
-        raise HTTPException(status_code=404, detail=f"Run introuvable : {id}")
+        raise api_error(404, "NOT_FOUND", f"Run introuvable : {id}")
     return ExperimentRun(**r)
 
 @app.post("/experiments/compare", response_model=Leaderboard, tags=["Experiments"])
 def compare_experiments(req: CompareRequest):
-    entries = []
-    runs = [RUNS_DB[rid] for rid in req.run_ids if rid in RUNS_DB]
-    sorted_runs = sorted(runs, key=lambda x: x["metrics"].get("accuracy", 0), reverse=True)
-    for rank, r in enumerate(sorted_runs, 1):
-        entries.append(LeaderboardEntry(run_id=r["id"], rank=rank, metrics=r["metrics"]))
-    return Leaderboard(
-        protocol_hash="sha256:proto_churn_v1",
-        primary_metric="accuracy",
-        direction="maximize",
-        entries=entries
-    )
+    if not req.run_ids:
+        raise api_error(400, "VALIDATION", "Au moins un run est requis.")
+    missing = [rid for rid in req.run_ids if rid not in RUNS_DB]
+    if missing:
+        raise api_error(404, "NOT_FOUND", f"Run introuvable : {missing[0]}")
+    runs = [RUNS_DB[rid] for rid in req.run_ids]
+    if len({r["protocol_hash"] for r in runs}) > 1:
+        raise api_error(422, "PROTOCOL_MISMATCH",
+                        "Les runs ne partagent pas le même protocole (split, métrique principale, validation).",
+                        {"protocols": [{"run_id": r["id"], "protocol_hash": r["protocol_hash"],
+                                        "primary_metric": r["primary_metric"]} for r in runs]})
+    metric = runs[0]["primary_metric"]
+    direction = "minimize" if metric in MINIMIZE_METRICS else "maximize"
+    worst = float("inf") if direction == "minimize" else float("-inf")
+    sorted_runs = sorted(runs, key=lambda r: r["metrics"].get(metric, worst), reverse=direction == "maximize")
+    entries = [LeaderboardEntry(run_id=r["id"], rank=i, metrics=r["metrics"]) for i, r in enumerate(sorted_runs, 1)]
+    return Leaderboard(protocol_hash=runs[0]["protocol_hash"], primary_metric=metric, direction=direction, entries=entries)
 
 # -------------------------------------------------------------
 # Model Registry & Inference
 # -------------------------------------------------------------
 @app.get("/models/registry", response_model=List[ModelVersion], tags=["Registry"])
 def list_registry(project_id: Optional[str] = None):
-    return [ModelVersion(**m) for m in MODELS_REGISTRY.values()]
+    return [ModelVersion(**m) for m in MODELS_REGISTRY.values()
+            if not project_id or RUNS_DB.get(m["run_id"], {}).get("project_id") == project_id]
 
 @app.get("/models/registry/{id}", response_model=ModelDetail, tags=["Registry"])
 def get_registry_model(id: str):
     m = MODELS_REGISTRY.get(id)
     if not m:
-        raise HTTPException(status_code=404, detail=f"Modèle introuvable dans le registre : {id}")
+        raise api_error(404, "NOT_FOUND", f"Modèle introuvable dans le registre : {id}")
     run = RUNS_DB.get(m["run_id"])
+    if run is None:
+        raise api_error(409, "RUN_MISSING", f"Le run {m['run_id']} de ce modèle est introuvable.")
     return ModelDetail(**m, run=ExperimentRun(**run))
 
 @app.post("/inference/predict", response_model=PredictResult, tags=["Inference"])
