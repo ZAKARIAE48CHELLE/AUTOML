@@ -7,7 +7,7 @@ import { Button, Card, ErrorBanner, JobProgress, Note, PageHeader, Spinner, Stat
 export function ExportPage() {
   const { exportId } = useParams()
   const q = useQuery({ queryKey: ['export', exportId], queryFn: () => studioApi.exportManifest(exportId!), refetchInterval: (s) => (s.state.data?.status === 'running' || s.state.data?.status === 'queued' ? 800 : false) })
-  if (q.isLoading) return <Spinner />
+  if (q.isLoading) return <Spinner shape="detail" />
   if (!q.data) return <ErrorBanner error={q.error} />
   const m = q.data; const ready = m.status === 'succeeded'
   const download = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(m, null, 2)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = `${m.export_id}-manifest.json`; a.click(); URL.revokeObjectURL(url) }

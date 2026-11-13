@@ -25,8 +25,7 @@
       "strategy",
       "test_ratio",
       "cv_folds",
-      "seed",
-      "target"
+      "seed"
     ],
     "properties": {
       "strategy": {
@@ -70,17 +69,44 @@
       "target": {
         "type": "string",
         "title": "Colonne cible",
-        "x-source": "columns"
+        "x-source": "columns",
+        "x-role": "target"
       },
       "group_column": {
         "type": "string",
         "title": "Colonne de groupe",
-        "x-source": "columns"
+        "x-source": "columns",
+        "x-role": "group_column"
       },
       "time_column": {
         "type": "string",
         "title": "Colonne temporelle",
-        "x-source": "columns"
+        "x-source": "columns",
+        "x-role": "time_column"
+      },
+      "text_column": {
+        "type": "string",
+        "title": "Colonne de texte",
+        "x-source": "columns",
+        "x-role": "text_column"
+      },
+      "image_column": {
+        "type": "string",
+        "title": "Colonne chemin d'image",
+        "x-source": "columns",
+        "x-role": "image_column"
+      },
+      "user_column": {
+        "type": "string",
+        "title": "Colonne utilisateur",
+        "x-source": "columns",
+        "x-role": "user_column"
+      },
+      "item_column": {
+        "type": "string",
+        "title": "Colonne article",
+        "x-source": "columns",
+        "x-role": "item_column"
       }
     }
   },

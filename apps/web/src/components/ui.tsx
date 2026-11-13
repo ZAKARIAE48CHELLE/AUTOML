@@ -1,4 +1,4 @@
-import { useId, type ReactNode, type ButtonHTMLAttributes } from 'react'
+import { useId, type CSSProperties, type ReactNode, type ButtonHTMLAttributes } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CountUp } from './Motion'
 import { Loader2, AlertTriangle, Info, X, FlaskConical, CheckCircle2, XCircle, Clock, Ban, MinusCircle, Database } from 'lucide-react'
@@ -9,10 +9,33 @@ export function Button({ variant = 'primary', size = 'md', loading, className, c
   const v = { primary: 'btn-primary text-white', secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50', danger: 'bg-gradient-to-r from-red-600 to-rose-500 text-white', ghost: 'text-slate-600 hover:bg-slate-100' }[variant]
   return <button {...p} disabled={p.disabled || loading} className={clsx('btn inline-flex items-center justify-center gap-1.5 rounded-lg font-medium disabled:cursor-not-allowed disabled:opacity-50', size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-2 text-sm', v, className)}>{loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{children}</button>
 }
-export const Skeleton = ({ className }: { className?: string }) => <div className={clsx('skeleton', className)} />
-export const Spinner = ({ label }: { label?: string }) => (
-  <div className="space-y-3 p-2" role="status" aria-live="polite"><div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-brand-500" />{label ?? 'Chargement…'}</div>
-    <Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-24 w-full" /></div>)
+export const Skeleton = ({ className, style }: { className?: string; style?: CSSProperties }) => <div className={clsx('skeleton', className)} style={style} />
+/** Squelettes de chargement à la forme du contenu attendu (tableau, cartes, page détail, canevas, conversation). */
+export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'canvas' | 'chat'
+const SK_W = ['w-2/3', 'w-1/2', 'w-3/4', 'w-2/5', 'w-3/5']
+function SkeletonBody({ shape }: { shape: SkeletonShape }) {
+  switch (shape) {
+    case 'table': return (
+      <div className="card overflow-hidden"><div className="flex gap-4 border-b border-slate-100 bg-slate-50 px-3 py-2.5">{[24, 16, 20, 12].map((w, i) => <Skeleton key={i} className="h-3" style={{ width: `${w}%` }} />)}</div>
+        {Array.from({ length: 6 }, (_, r) => <div key={r} className="flex items-center gap-4 border-b border-slate-100 px-3 py-3 last:border-0" style={{ animation: `fadeIn .4s ${r * 0.05}s both` }}><Skeleton className="h-3.5 w-[24%]" /><Skeleton className="h-3.5 w-[16%]" /><Skeleton className="h-5 w-16 !rounded-full" /><Skeleton className="ml-auto h-3.5 w-[12%]" /></div>)}</div>)
+    case 'cards': return (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <div key={i} className="rounded-xl border border-slate-200 bg-white p-4" style={{ animation: `fadeIn .4s ${i * 0.06}s both` }}><div className="flex items-center gap-2"><Skeleton className="h-8 w-8 !rounded-lg" /><Skeleton className="h-4 w-1/2" /></div><Skeleton className="mt-3 h-3 w-full" /><Skeleton className="mt-2 h-3 w-4/5" /><div className="mt-4 flex gap-2"><Skeleton className="h-5 w-14 !rounded-full" /><Skeleton className="h-5 w-20 !rounded-full" /></div></div>)}</div>)
+    case 'detail': return (
+      <div className="space-y-4"><div><Skeleton className="h-6 w-64" /><Skeleton className="mt-2 h-3.5 w-96 max-w-full" /></div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="rounded-xl border border-slate-200 bg-white p-3"><Skeleton className="h-3 w-1/2" /><Skeleton className="mt-2 h-6 w-2/3" /></div>)}</div>
+        <div className="grid gap-4 lg:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2"><Skeleton className="h-4 w-40" /><Skeleton className="mt-4 h-40 w-full" /></div><div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4"><Skeleton className="h-4 w-28" />{SK_W.map((w, i) => <Skeleton key={i} className={clsx('h-3', w)} />)}</div></div></div>)
+    case 'canvas': return (
+      <div className="relative h-[60vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] dark:[background-image:radial-gradient(#1e2a44_1px,transparent_1px)] [background-size:18px_18px]">
+        <svg className="absolute inset-0 h-full w-full" aria-hidden="true"><path d="M 230 130 C 300 130, 300 230, 370 230 M 550 230 C 620 230, 620 130, 690 130" className="fill-none stroke-slate-300" strokeWidth="2" strokeDasharray="6 5" style={{ animation: 'dashFlow .9s linear infinite' }} /></svg>
+        {[[50, 90], [370, 190], [690, 90]].map(([x, y], i) => <div key={i} className="absolute w-44 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm" style={{ left: x, top: y, animation: `popIn .5s var(--ease-spring) ${i * 0.12}s both` }}><Skeleton className="h-3.5 w-2/3" /><Skeleton className="mt-2 h-3 w-full" /><Skeleton className="mt-1.5 h-3 w-1/2" /></div>)}</div>)
+    case 'chat': return (
+      <div className="space-y-3">{[['w-3/5', false], ['w-4/5', true], ['w-2/5', false]].map(([w, me], i) => <div key={i} className={clsx('flex', me ? 'justify-end' : 'justify-start')}><Skeleton className={clsx('h-10 !rounded-2xl', w as string)} /></div>)}</div>)
+    default: return <div className="space-y-2.5">{SK_W.slice(0, 3).map((w, i) => <Skeleton key={i} className={clsx('h-4', w)} />)}<Skeleton className="h-24 w-full" /></div>
+  }
+}
+export const Spinner = ({ label, shape = 'lines' }: { label?: string; shape?: SkeletonShape }) => (
+  <div className="space-y-3 p-2" role="status" aria-live="polite" aria-busy="true"><div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-brand-500" />{label ?? 'Chargement…'}</div>
+    <SkeletonBody shape={shape} /></div>)
 export const Card = ({ children, className, title, actions }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode }) => (
   <section className={clsx('card', className)}>{(title || actions) && <header className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5"><h3 className="text-sm font-semibold text-slate-700">{title}</h3>{actions}</header>}<div className="p-4">{children}</div></section>)
 export const PageHeader = ({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) => (

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { validationToast } from '@/components/Feedback'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertOctagon, CheckCircle2, Play, ShieldCheck } from 'lucide-react'
@@ -24,16 +25,16 @@ export function ReviewPage() {
   const xq = useQuery({ queryKey: ['executions', workflowId], queryFn: () => studioApi.executions({ workflow_id: workflowId }) })
   const dq = useQuery({ queryKey: ['diff', workflowId, versionId], queryFn: () => studioApi.diff(workflowId!, versionId!, vq.data!.parent_version_id!), enabled: !!vq.data?.parent_version_id })
   const refresh = () => { qc.invalidateQueries({ queryKey: ['approvals', versionId] }); qc.invalidateQueries({ queryKey: ['report', versionId] }); qc.invalidateQueries({ queryKey: ['version', workflowId, versionId] }); qc.invalidateQueries({ queryKey: ['audit'] }); qc.invalidateQueries({ queryKey: ['workflows'] }) }
-  const validate = useMutation({ mutationFn: () => studioApi.validate(workflowId!, versionId!), onSuccess: refresh })
+  const validate = useMutation({ meta: { toast: validationToast }, mutationFn: () => studioApi.validate(workflowId!, versionId!), onSuccess: refresh })
   const [confirm, setConfirm] = useState<{ node_ids: string[]; cls: 'L2' | 'L3'; kind: string } | null>(null)
   const [budget, setBudget] = useState<BudgetSpec>()
-  const approve = useMutation({ mutationFn: (r: { cls: 'L2' | 'L3'; node_ids?: string[]; budget?: BudgetSpec }) => studioApi.approve({ workflow_version_id: versionId!, operation_classes: [r.cls], node_ids: r.node_ids, budget: r.budget, method: 'explicit_click', scope: 'lineage' }), onSuccess: () => { setConfirm(null); refresh() } })
-  const revoke = useMutation({ mutationFn: (id: string) => studioApi.revoke(id), onSuccess: refresh })
-  const run = useMutation({ mutationFn: () => studioApi.execute(versionId!, (aq.data ?? []).filter((a) => a.status === 'active').map((a) => a.id), reuse || undefined), onSuccess: (r) => nav(`/studio/executions/${r.execution_id}`) })
+  const approve = useMutation({ meta: { toast: 'Approbation accordée' }, mutationFn: (r: { cls: 'L2' | 'L3'; node_ids?: string[]; budget?: BudgetSpec }) => studioApi.approve({ workflow_version_id: versionId!, operation_classes: [r.cls], node_ids: r.node_ids, budget: r.budget, method: 'explicit_click', scope: 'lineage' }), onSuccess: () => { setConfirm(null); refresh() } })
+  const revoke = useMutation({ meta: { toast: { title: 'Approbation révoquée', tone: 'info' } }, mutationFn: (id: string) => studioApi.revoke(id), onSuccess: refresh })
+  const run = useMutation({ meta: { toast: { title: 'Exécution lancée', detail: 'Suivez la progression en direct.' } }, mutationFn: () => studioApi.execute(versionId!, (aq.data ?? []).filter((a) => a.status === 'active').map((a) => a.id), reuse || undefined), onSuccess: (r) => nav(`/studio/executions/${r.execution_id}`) })
 
   const v = vq.data
   const lineage = useMemo(() => { const m = new Map((wq.data?.versions ?? []).map((x) => [x.id, x.parent_version_id])); const s = new Set<string>(); let c: string | null | undefined = versionId; while (c) { s.add(c); c = m.get(c) } return s }, [wq.data, versionId])
-  if (vq.isLoading) return <Spinner />
+  if (vq.isLoading) return <Spinner shape="detail" />
   if (!v) return <ErrorBanner error={vq.error} />
   const reqs = requirements(v.spec, mode); const active = (aq.data ?? []).filter((a) => a.status === 'active')
   const ctx = { contentHash: v.content_hash, spec: v.spec, inLineage: (a: Approval) => lineage.has(a.workflow_version_id) }

@@ -8,7 +8,7 @@ import { studioApi } from '@/api/studio'
 import { assistantApi } from '@/api/assistant'
 import { openExecutionEvents } from '@/api/events'
 import { Button, Card, ErrorBanner, JobProgress, Modal, PageHeader, SimBadge, Spinner, StatusBadge, Table } from '@/components/ui'
-import { useConfetti } from '@/components/Motion'
+import { celebrate, toast } from '@/components/Feedback'
 import { EvidenceList } from '@/components/Evidence'
 import { WorkflowCanvas } from './WorkflowCanvas'
 import { fmtDate, shortId } from '@/lib/format'
@@ -20,23 +20,22 @@ export function ExecutionDetail() {
   const { executionId } = useParams(); const nav = useNavigate(); const qc = useQueryClient()
   const q = useQuery({ queryKey: ['execution', executionId], queryFn: () => studioApi.execution(executionId!), refetchInterval: (s) => (TERMINAL.includes(s.state.data?.status ?? '') ? false : 2500) })
   const e = q.data
-  const [confetti, fire] = useConfetti(); const prev = useRef<string>()
-  useEffect(() => { if (e && prev.current && prev.current !== 'succeeded' && e.status === 'succeeded') fire(); prev.current = e?.status }, [e?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  const prev = useRef<string>()
+  useEffect(() => { if (e && prev.current && prev.current !== 'succeeded' && e.status === 'succeeded') { celebrate('big'); toast('Exécution réussie !', { tone: 'celebrate', detail: 'Tous les nœuds se sont terminés avec succès.' }) } prev.current = e?.status }, [e?.status]) // eslint-disable-line react-hooks/exhaustive-deps
   const vq = useQuery({ queryKey: ['version', e?.workflow_id, e?.workflow_version_id], queryFn: () => studioApi.version(e!.workflow_id, e!.workflow_version_id), enabled: !!e })
   const [events, setEvents] = useState<ExecutionEvent[]>([])
   useEffect(() => { if (!executionId) return; setEvents([]); return openExecutionEvents(executionId, (ev) => { setEvents((s) => [...s.slice(-49), ev]); qc.invalidateQueries({ queryKey: ['execution', executionId] }); if (ev.type === 'execution_status') { qc.invalidateQueries({ queryKey: ['runs'] }); qc.invalidateQueries({ queryKey: ['jobs'] }) } }) }, [executionId, qc])
-  const cancel = useMutation({ mutationFn: () => studioApi.cancel(executionId!), onSuccess: () => qc.invalidateQueries({ queryKey: ['execution', executionId] }) })
+  const cancel = useMutation({ meta: { toast: { title: 'Exécution annulée', tone: 'info' } }, mutationFn: () => studioApi.cancel(executionId!), onSuccess: () => qc.invalidateQueries({ queryKey: ['execution', executionId] }) })
   const ex = useMutation({ mutationFn: () => assistantApi.explain(`execution:${executionId}`) })
   const [expOpen, setExpOpen] = useState(false); const [inclData, setInclData] = useState(false)
-  const exp = useMutation({ mutationFn: async () => { let ap: string | undefined; if (inclData) ap = (await studioApi.approve({ workflow_version_id: e!.workflow_version_id, operation_classes: ['L3'], node_ids: ['export'], method: 'explicit_click' })).approval_id; return studioApi.createExport(executionId!, inclData, ap) }, onSuccess: (r) => nav(`/studio/exports/${r.export_id}`) })
-  if (q.isLoading) return <Spinner />
+  const exp = useMutation({ meta: { toast: 'Export prêt' }, mutationFn: async () => { let ap: string | undefined; if (inclData) ap = (await studioApi.approve({ workflow_version_id: e!.workflow_version_id, operation_classes: ['L3'], node_ids: ['export'], method: 'explicit_click' })).approval_id; return studioApi.createExport(executionId!, inclData, ap) }, onSuccess: (r) => nav(`/studio/exports/${r.export_id}`) })
+  if (q.isLoading) return <Spinner shape="detail" />
   if (!e) return <ErrorBanner error={q.error} />
   const status: Record<string, { status: NodeStatus; cached?: boolean }> = Object.fromEntries(e.node_runs.map((n) => [n.node_id, { status: n.status, cached: n.cached }]))
   const running = !TERMINAL.includes(e.status); const spec = vq.data?.spec
   const label = (id: string) => { const n = spec?.nodes.find((x) => x.id === id); return n ? `${NODE_TYPE_BY_ID[n.type]?.label ?? n.type}` : '' }
   return (
     <>
-      {confetti}
       <PageHeader title={`Exécution ${shortId(e.id)}`} subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={e.status} /> démarrée {fmtDate(e.created_at)}{e.finished_at && <> · terminée {fmtDate(e.finished_at)}</>} · version <Link className="text-brand-700 hover:underline" to={`/studio/workflows/${e.workflow_id}/review/${e.workflow_version_id}`}>{shortId(e.workflow_version_id)}</Link>{e.reuse_from && <> · reprise depuis {shortId(e.reuse_from)}</>}</span>}
         actions={<>
           {running && <Button variant="danger" loading={cancel.isPending} onClick={() => cancel.mutate()}><Ban className="h-4 w-4" />Annuler</Button>}

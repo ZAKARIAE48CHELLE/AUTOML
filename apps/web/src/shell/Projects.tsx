@@ -11,7 +11,7 @@ export function Projects() {
   const { user, setProjectId } = useSession(); const nav = useNavigate(); const qc = useQueryClient()
   const q = useQuery({ queryKey: ['projects'], queryFn: dataApi.projects, enabled: !!user })
   const [name, setName] = useState('')
-  const create = useMutation({
+  const create = useMutation({ meta: { toast: { title: 'Projet créé', celebrate: 'small' } },
     mutationFn: () => dataApi.createProject(name),
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ['projects'] })

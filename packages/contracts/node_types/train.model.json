@@ -53,7 +53,17 @@
           "recall",
           "rmse",
           "mae",
-          "r2"
+          "r2",
+          "mape",
+          "smape",
+          "silhouette",
+          "davies_bouldin",
+          "calinski_harabasz",
+          "average_precision",
+          "precision_at_k",
+          "recall_at_k",
+          "ndcg_at_k",
+          "map_at_k"
         ],
         "default": "f1"
       },

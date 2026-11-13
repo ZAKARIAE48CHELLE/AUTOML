@@ -7,6 +7,7 @@ import { recommend } from './data'
 import { taskFor } from './training'
 import { createWorkflow, fullValidate, modeOf } from './studio'
 import { fullPlanSpec } from '../specs'
+import { buildTemplateSpec, detectTaskFromText, guessRoles, inferTask, pipelineType } from '@contracts/src'
 import { MINIMIZE } from '../ml'
 
 const AI = { type: 'assistant' as const, id: 'assistant' }
@@ -16,16 +17,23 @@ function parseGoal(text: string, dsvId: string): { goal: C.GoalSpec; questions: 
   const v = db.versions.find((x) => x.id === dsvId); if (!v) throw notFound('DatasetVersion', dsvId)
   const lower = text.toLowerCase(); const questions: string[] = [], warnings: string[] = [], ambiguities: string[] = []
   let col = v.schema.find((c) => lower.includes(c.name.toLowerCase()))
-  if (!col) { col = v.schema[v.schema.length - 1]; ambiguities.push(`Cible non précisée : « ${col.name} » supposée (dernière colonne).`); questions.push(`La cible est-elle bien « ${col.name} » ?`) }
-  const task = taskFor(v.id, col.name)
-  let metric = task === 'classification' ? 'f1' : 'rmse'
-  if (/accuracy|exactitude|précision globale/.test(lower) && task === 'classification') { metric = 'accuracy'; warnings.push('accuracy peut être trompeuse si les classes sont déséquilibrées.') }
-  if (/auc/.test(lower)) metric = 'roc_auc'
-  if (/mae/.test(lower) && task === 'regression') metric = 'mae'
+  // Type de pipeline : d'abord l'intention exprimée, sinon la forme du dataset.
+  const task: C.Task = detectTaskFromText(lower) ?? taskFor(v.id, col?.name ?? guessRoles(v.schema, inferTask(v.schema)).target)
+  const pt = pipelineType(task); const needsTarget = pt.roles.some((r) => r.role === 'target' && r.required)
+  if (!col && pt.roles.some((r) => r.role === 'target')) {
+    const guessed = guessRoles(v.schema, task).target; col = v.schema.find((c) => c.name === guessed)
+    if (col) { ambiguities.push(`Cible non précisée : « ${col.name} » supposée.`); questions.push(`La cible est-elle bien « ${col.name} » ?`) }
+    else if (needsTarget) { col = v.schema[v.schema.length - 1]; ambiguities.push(`Cible non précisée : « ${col.name} » supposée (dernière colonne).`); questions.push(`La cible est-elle bien « ${col.name} » ?`) }
+  }
+  if (task === 'clustering') col = undefined
+  let metric = pt.default_metric
+  const want = (m: string, re: RegExp) => { if (re.test(lower) && pt.metrics.includes(m)) metric = m }
+  want('accuracy', /accuracy|exactitude|précision globale/); want('roc_auc', /auc/); want('mae', /\bmae\b/); want('rmse', /rmse/); want('mape', /mape/); want('ndcg_at_k', /ndcg/); want('silhouette', /silhouette/)
+  if (metric === 'accuracy' && task === 'classification') warnings.push('accuracy peut être trompeuse si les classes sont déséquilibrées.')
   const constraints: string[] = []; const mm = lower.match(/(\d+)\s*min/); if (mm) constraints.push(`durée de tuning ≤ ${mm[1]} min`)
   if (task === 'classification') { const prof = db.profiles[v.id]; const t = prof?.columns.find((c) => c.name === col!.name); const yes = t?.top?.[1]; if (yes && yes.count / v.rows < 0.35) warnings.push(`Classes déséquilibrées (minoritaire ≈ ${Math.round((yes.count / v.rows) * 100)} %) : ${metric} retenue.`) }
   if (!db.profiles[v.id]) questions.push('Aucun profil n\'est disponible : lancer le profilage améliorerait le plan.')
-  const goal: C.GoalSpec = { id: uid('goal'), task, target: col.name, objective: { primary_metric: metric, direction: MINIMIZE.has(metric) ? 'minimize' : 'maximize' }, constraints, ambiguities }
+  const goal: C.GoalSpec = { id: uid('goal'), task, target: col?.name, objective: { primary_metric: metric, direction: MINIMIZE.has(metric) ? 'minimize' : 'maximize' }, constraints, ambiguities }
   db.goals.push(goal); return { goal, questions, warnings }
 }
 
@@ -72,11 +80,13 @@ export function registerAssistant() {
     await jitter(900, 1500)
     const dsvId: string = body.dataset_version_id ?? body.profile_ref ?? db.versions.find((v) => v.schema.some((c) => c.name === goal.target))?.id
     const dsv = db.versions.find((v) => v.id === dsvId); if (!dsv) throw notFound('DatasetVersion', dsvId)
-    const spec = fullPlanSpec(dsv.id, goal.target, goal.objective.primary_metric, goal.id, 'ai', goal.task)
-    const rec = recommend(dsv.id, goal.target); spec.nodes.find((n) => n.type === 'data.preprocess')!.params.steps = rec.spec.steps
+    const tabular = goal.task === 'classification' || goal.task === 'regression'
+    const spec = tabular ? fullPlanSpec(dsv.id, goal.target!, goal.objective.primary_metric, goal.id, 'ai', goal.task as 'classification' | 'regression')
+      : buildTemplateSpec(goal.task, dsv.id, dsv.schema, { target: goal.target, metric: goal.objective.primary_metric, origin: 'ai', goal_id: goal.id, gateDL: db.catalogGateDL })
+    const rec = recommend(dsv.id, goal.target, goal.task); spec.nodes.find((n) => n.type === 'data.preprocess')!.params.steps = rec.spec.steps
     if (goal.task === 'regression') { const t = spec.nodes.find((n) => n.id === 'n4'); if (t) t.params.model_id = 'ridge' }
-    const budgetMin = goal.constraints.map((c) => c.match(/(\d+)\s*min/)?.[1]).find(Boolean); if (budgetMin) spec.nodes.find((n) => n.type === 'train.tune')!.params.budget.max_minutes = Math.min(60, Number(budgetMin))
-    const { workflow, version } = createWorkflow(dsv.project_id, `Plan IA — ${goal.target}`, spec, 'ai', AI)
+    const budgetMin = goal.constraints.map((c) => c.match(/(\d+)\s*min/)?.[1]).find(Boolean); const tune = spec.nodes.find((n) => n.type === 'train.tune'); if (budgetMin && tune) tune.params.budget.max_minutes = Math.min(60, Number(budgetMin))
+    const { workflow, version } = createWorkflow(dsv.project_id, `Plan IA — ${goal.target ?? pipelineType(goal.task).label}`, spec, 'ai', AI)
     const rep = fullValidate(version); db.reports[version.id] = rep
     const mode = modeOf(dsv.project_id)
     const prof = db.profiles[dsv.id]

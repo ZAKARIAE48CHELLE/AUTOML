@@ -59,7 +59,10 @@ services:
       context: ./services/e1-data-service
     ports:
       - "8001:8001"
+    volumes:
+      - ./packages/contracts:/contracts:ro  # catalogue partagé (types de pipeline, modèles, métriques)
     environment:
+      - CONTRACTS_DIR=/contracts
       - PORT=8001
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e1
     depends_on:
@@ -81,7 +84,10 @@ services:
       context: ./services/e2-training-service
     ports:
       - "8002:8002"
+    volumes:
+      - ./packages/contracts:/contracts:ro  # catalogue partagé (types de pipeline, modèles, métriques)
     environment:
+      - CONTRACTS_DIR=/contracts
       - PORT=8002
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e2
     depends_on:
@@ -103,7 +109,12 @@ services:
       context: ./services/e3-assistant-service
     ports:
       - "8003:8003"
+    volumes:
+      - ./packages/contracts:/contracts:ro  # catalogue partagé (types de pipeline, modèles, métriques)
     environment:
+      - CONTRACTS_DIR=/contracts
+      - E4_SERVICE_URL=http://e4-studio-service:8004
+      - E1_SERVICE_URL=http://e1-data-service:8001
       - PORT=8003
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e3
     depends_on:
@@ -125,7 +136,11 @@ services:
       context: ./services/e4-studio-service
     ports:
       - "8004:8004"
+    volumes:
+      - ./packages/contracts:/contracts:ro  # catalogue partagé (types de pipeline, modèles, métriques)
     environment:
+      - CONTRACTS_DIR=/contracts
+      - E1_SERVICE_URL=http://e1-data-service:8001
       - PORT=8004
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ai_studio_e4
       # Governance mode (E3) and model registry (E2) lookups

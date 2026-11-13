@@ -41,11 +41,22 @@
                 "impute_median",
                 "impute_mean",
                 "impute_most_frequent",
+                "drop_columns",
                 "onehot",
                 "ordinal",
                 "standard_scale",
                 "minmax_scale",
-                "drop_columns"
+                "pca",
+                "date_features",
+                "lag_features",
+                "rolling_features",
+                "text_clean",
+                "tfidf",
+                "text_embed",
+                "image_resize",
+                "image_normalize",
+                "image_augment",
+                "min_interactions"
               ]
             },
             "columns": {

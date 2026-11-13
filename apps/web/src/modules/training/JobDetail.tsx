@@ -10,8 +10,8 @@ export function JobDetail() {
   const { jobId } = useParams(); const [sp] = useSearchParams(); const studyId = sp.get('study')
   const q = useQuery({ queryKey: ['job', jobId], queryFn: () => trainingApi.job(jobId!), refetchInterval: (s) => (['queued', 'running'].includes(s.state.data?.status ?? '') ? 600 : false) })
   const st = useQuery({ queryKey: ['study', studyId], queryFn: () => trainingApi.study(studyId!), enabled: !!studyId, refetchInterval: 800 })
-  const cancel = useMutation({ mutationFn: () => studioApi.cancel(q.data!.execution_ref!.execution_id) })
-  if (q.isLoading) return <Spinner />
+  const cancel = useMutation({ meta: { toast: { title: 'Entraînement annulé', tone: 'info' } }, mutationFn: () => studioApi.cancel(q.data!.execution_ref!.execution_id) })
+  if (q.isLoading) return <Spinner shape="detail" />
   if (q.error) return <ErrorBanner error={q.error} />
   const j = q.data!; const active = j.status === 'queued' || j.status === 'running'
   return (

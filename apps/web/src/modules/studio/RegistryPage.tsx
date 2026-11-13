@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertOctagon, CheckCircle2, XCircle } from 'lucide-react'
 import type { ModelVersion } from '@contracts/src'
-import { useConfetti } from '@/components/Motion'
 import { trainingApi } from '@/api/training'
 import { studioApi } from '@/api/studio'
 import { dataApi } from '@/api/data'
@@ -23,7 +22,7 @@ export function RegistryPage() {
     <>
       <PageHeader title="Registre de modèles" subtitle="Versions enregistrées après test final. La promotion (staging, production) exige une approbation L3 individuelle." />
       <ErrorBanner error={q.error} />
-      {q.isLoading ? <Spinner /> : !sorted.length ? <EmptyState title="Aucun modèle enregistré" hint="Un modèle est enregistré par un nœud model.register, en aval d'un test final." /> : (
+      {q.isLoading ? <Spinner shape="cards" /> : !sorted.length ? <EmptyState title="Aucun modèle enregistré" hint="Un modèle est enregistré par un nœud model.register, en aval d'un test final." /> : (
         <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
           <Table head={['Modèle', 'Version', 'Alias', 'Métrique (val.)', 'Test', 'Créé']}>{sorted.map((m) => { const r = run(m.run_id); return (
             <tr key={m.id} onClick={() => setSel(m.id)} className={`cursor-pointer hover:bg-slate-50 ${mv?.id === m.id ? 'bg-brand-50/60' : ''}`}><td className="td font-medium">{m.name}</td><td className="td">v{m.version}</td><td className="td"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ALIAS[m.alias ?? 'candidate']}`}>{m.alias ?? '—'}</span></td><td className="td">{r ? `${r.primary_metric} ${fmtNum(r.metrics[r.primary_metric])}` : '—'}</td><td className="td">{m.test_evaluated ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-500" />}</td><td className="td text-slate-500">{fmtDate(m.created_at)}</td></tr>) })}</Table>
@@ -36,12 +35,11 @@ function ModelPanel({ mv, onChanged }: { mv: ModelVersion; onChanged: () => void
   const { projectId } = useSession()
   const d = useQuery({ queryKey: ['mv', mv.id], queryFn: () => trainingApi.modelVersion(mv.id) })
   const prom = useQuery({ queryKey: ['promotions', mv.name], queryFn: () => studioApi.promotions(mv.name) })
-  const [alias, setAlias] = useState<'staging' | 'production' | null>(null); const [confetti, fire] = useConfetti()
-  const promote = useMutation({ mutationFn: async () => { const a = await studioApi.approve({ workflow_version_id: mv.workflow_version_id!, operation_classes: ['L3'], node_ids: [`promote:${mv.id}`], method: 'explicit_click' }); return studioApi.promote(mv.id, alias!, a.approval_id) }, onSuccess: () => { setAlias(null); fire(); onChanged(); d.refetch() } })
+  const [alias, setAlias] = useState<'staging' | 'production' | null>(null)
+  const promote = useMutation({ meta: { toast: { title: 'Modèle promu', detail: 'Le nouvel alias est actif.', celebrate: 'big' } }, mutationFn: async () => { const a = await studioApi.approve({ workflow_version_id: mv.workflow_version_id!, operation_classes: ['L3'], node_ids: [`promote:${mv.id}`], method: 'explicit_click' }); return studioApi.promote(mv.id, alias!, a.approval_id) }, onSuccess: () => { setAlias(null); onChanged(); d.refetch() } })
   const run = d.data?.run; const checks = { test: !!mv.test_evaluated, repro: !!run?.execution_id || !!run?.artifacts.length }
   return (
     <div className="space-y-4">
-      {confetti}
       <Card title={`${mv.name} v${mv.version}`} actions={<span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ALIAS[mv.alias ?? 'candidate']}`}>{mv.alias}</span>}>
         {d.isLoading ? <Spinner /> : <dl className="space-y-1 text-xs"><div><dt className="inline text-slate-500">Artefact : </dt><dd className="inline font-mono">{d.data!.artifact_ref}</dd></div><div><dt className="inline text-slate-500">Checksum : </dt><dd className="inline font-mono">{d.data!.checksum}</dd></div><div><dt className="inline text-slate-500">Run : </dt><dd className="inline"><Link className="font-mono text-brand-700 hover:underline" to={`/training/experiments/${mv.run_id}`}>{mv.run_id}</Link></dd></div>
           <div><dt className="text-slate-500">Schéma d'entrée (colonnes brutes) :</dt><dd className="font-mono">{d.data!.input_schema?.map((c) => `${c.name}:${c.dtype}`).join(', ')}</dd></div><div><dt className="text-slate-500">Environnement :</dt><dd className="font-mono">{d.data!.environment?.join(', ')}</dd></div></dl>}
@@ -63,8 +61,8 @@ function PredictCard({ mv, projectId }: { mv: ModelVersion; projectId: string })
   const ds = useQuery({ queryKey: ['datasets', projectId], queryFn: () => dataApi.datasets(projectId) })
   const [rec, setRec] = useState<Record<string, string>>({})
   const schema = d.data?.input_schema ?? []
-  const one = useMutation({ mutationFn: () => trainingApi.predict(mv.id, { records: [Object.fromEntries(Object.entries(rec).filter(([, v]) => v !== '').map(([k, v]) => { const c = schema.find((x) => x.name === k); return [k, c && (c.dtype === 'int' || c.dtype === 'float') ? Number(v) : v] }))] }) })
-  const batch = useMutation({ mutationFn: (dsv: string) => trainingApi.predict(mv.id, { dataset_version_id: dsv }) })
+  const one = useMutation({ meta: { toast: 'Prédiction calculée' }, mutationFn: () => trainingApi.predict(mv.id, { records: [Object.fromEntries(Object.entries(rec).filter(([, v]) => v !== '').map(([k, v]) => { const c = schema.find((x) => x.name === k); return [k, c && (c.dtype === 'int' || c.dtype === 'float') ? Number(v) : v] }))] }) })
+  const batch = useMutation({ meta: { toast: 'Prédictions par lot calculées' }, mutationFn: (dsv: string) => trainingApi.predict(mv.id, { dataset_version_id: dsv }) })
   const r = one.data
   return (
     <Card title="Prédire">

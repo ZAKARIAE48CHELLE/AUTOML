@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useIsFetching, useIsMutating } from '@tanstack/react-query'
 import { animate, motion, AnimatePresence } from 'framer-motion'
@@ -29,18 +29,4 @@ export function TopLoader() {
   return (
     <AnimatePresence>{show && <motion.div key="bar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[3px] overflow-hidden" role="progressbar" aria-label="Chargement">
       <div className="h-full w-1/4 rounded-full bg-gradient-to-r from-brand-500 via-sky-400 to-indigo-400" style={{ animation: 'loadbar 1.1s ease-in-out infinite' }} /></motion.div>}</AnimatePresence>)
-}
-
-const COLORS = ['#4f81bd', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#38bdf8']
-/** Confettis : `useConfetti()` retourne [élément à rendre, déclencheur]. */
-export function useConfetti(): [ReactNode, () => void] {
-  const [burst, setBurst] = useState(0); const timer = useRef<ReturnType<typeof setTimeout>>()
-  const fire = () => { setBurst((b) => b + 1); clearTimeout(timer.current); timer.current = setTimeout(() => setBurst(0), 2200) }
-  useEffect(() => () => clearTimeout(timer.current), [])
-  const node = burst ? (
-    <div key={burst} className="pointer-events-none fixed inset-0 z-[70] overflow-hidden" aria-hidden="true">
-      {Array.from({ length: 60 }, (_, i) => { const a = (i / 60) * Math.PI * 2 + Math.random(), d = 160 + Math.random() * 380
-        return <span key={i} className="confetti-piece" style={{ background: COLORS[i % COLORS.length], ['--x' as string]: `${Math.cos(a) * d}px`, ['--y' as string]: `${Math.sin(a) * d * 0.7 + 260}px`, ['--r' as string]: `${(Math.random() - 0.5) * 900}deg`, animationDelay: `${Math.random() * 0.15}s` }} /> })}
-    </div>) : null
-  return [node, fire]
 }

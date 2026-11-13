@@ -58,13 +58,13 @@ async function run(ex: C.Execution, version: C.WorkflowVersion) {
     let refs: { kind: string; id: string }[] = []
     switch (n.type) {
       case 'data.dataset': { await sleep(400); if (!db.versions.some((v) => v.id === n.params.dataset_version_id)) throw new NodeFail('D_DATASET', 'Version de dataset introuvable.'); st.outputs[id] = { dataset: n.params.dataset_version_id }; refs = [{ kind: 'dataset_version', id: n.params.dataset_version_id }]; break }
-      case 'data.split': { await sleep(500); const r = await call('POST', '/splits', { dataset_version_id: inp('dataset')[0], split_spec: n.params }); st.outputs[id] = { split: r.split_id }; refs = [{ kind: 'split', id: r.split_id }]; break }
+      case 'data.split': { await sleep(500); const r = await call('POST', '/splits', { dataset_version_id: inp('dataset')[0], split_spec: n.params, task: spec.metadata.task }); st.outputs[id] = { split: r.split_id }; refs = [{ kind: 'split', id: r.split_id }]; break }
       case 'data.preprocess': { await sleep(500); const dsv = db.splits.find((s) => s.id === inp('split')[0])!.dataset_version_id; const r = await call('POST', '/preprocessing/specs', { dataset_version_id: dsv, spec: { steps: n.params.steps } }); st.outputs[id] = { spec: r.spec_id }; refs = [{ kind: 'preprocess_spec', id: r.spec_id }]; break }
       case 'train.model': {
-        const r = await call('POST', '/training/jobs', { execution_ref: ref, split_id: inp('split')[0], preprocess_spec_id: inp('spec')[0], model_id: n.params.model_id, params: n.params.params ?? {}, primary_metric: n.params.primary_metric, seed: n.params.seed }, true)
+        const r = await call('POST', '/training/jobs', { execution_ref: ref, task: spec.metadata.task, split_id: inp('split')[0], preprocess_spec_id: inp('spec')[0], model_id: n.params.model_id, params: n.params.params ?? {}, primary_metric: n.params.primary_metric, seed: n.params.seed }, true)
         const j = await watch(r.job_id); st.outputs[id] = { run: j.run_id! }; refs = [{ kind: 'run', id: j.run_id! }]; break }
       case 'train.tune': {
-        const r = await call('POST', '/tuning/studies', { execution_ref: ref, base_config: { split_id: inp('split')[0], preprocess_spec_id: inp('spec')[0], model_id: n.params.model_id, params: {}, seed: n.params.seed, primary_metric: n.params.primary_metric }, search_space: n.params.search_space ?? {}, budget: n.params.budget, primary_metric: n.params.primary_metric }, true)
+        const r = await call('POST', '/tuning/studies', { execution_ref: ref, base_config: { task: spec.metadata.task, split_id: inp('split')[0], preprocess_spec_id: inp('spec')[0], model_id: n.params.model_id, params: {}, seed: n.params.seed, primary_metric: n.params.primary_metric }, search_space: n.params.search_space ?? {}, budget: n.params.budget, primary_metric: n.params.primary_metric }, true)
         const study = db.studies.find((s) => s.id === r.study_id)!; const j = await watch(study.job_id); st.outputs[id] = { run: j.run_id! }; refs = [{ kind: 'study', id: r.study_id }, { kind: 'run', id: j.run_id! }]; break }
       case 'eval.compare': {
         await sleep(400); const runs = inp('runs'); const min = n.params.min_succeeded ?? 1

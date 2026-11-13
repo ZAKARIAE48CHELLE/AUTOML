@@ -1,7 +1,11 @@
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel
 
-Task = Literal["classification", "regression"]
+from .contracts import contracts
+
+# Types de pipeline et modalités : catalogue partagé (packages/contracts).
+Task = Literal[tuple(contracts.TASKS)]  # type: ignore[valid-type]
+Modality = Literal[tuple(contracts.MODALITIES)]  # type: ignore[valid-type]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 class ModelSpec(BaseModel):
@@ -10,7 +14,7 @@ class ModelSpec(BaseModel):
     family: str
     label: str
     task: List[Task]
-    modality: Literal["tabular"] = "tabular"
+    modality: Modality = "tabular"
     params_schema: Dict[str, Any]
     dependencies: List[str]
     determinism: Literal["exact", "tolerance"]
@@ -31,6 +35,7 @@ class TrainingValidateRequest(BaseModel):
     params: Dict[str, Any]
     primary_metric: str
     budget: Optional[Dict[str, int]] = None
+    task: Optional[Task] = None
 
 class ValidationIssue(BaseModel):
     code: str

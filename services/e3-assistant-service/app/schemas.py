@@ -3,7 +3,9 @@ from pydantic import BaseModel
 
 Mode = Literal["auto", "guided", "expert"]
 OpClass = Literal["L0", "L1", "L2", "L3"]
-Task = Literal["classification", "regression"]
+from .contracts import contracts
+
+Task = Literal[tuple(contracts.TASKS)]  # type: ignore[valid-type]
 
 class EvidenceRef(BaseModel):
     source_type: Literal["profile", "run", "execution", "rule", "dataset"]
@@ -40,7 +42,7 @@ class ObjectiveSpec(BaseModel):
 class GoalSpec(BaseModel):
     id: str
     task: Task
-    target: str
+    target: Optional[str] = None
     objective: ObjectiveSpec
     constraints: List[str] = []
     ambiguities: List[str] = []
@@ -76,6 +78,7 @@ class PlanProposal(BaseModel):
 class PlanProposalRequest(BaseModel):
     goal_id: str
     dataset_version_id: str
+    project_id: Optional[str] = None
 
 class ExplanationRequest(BaseModel):
     subject_ref: str

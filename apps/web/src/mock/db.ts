@@ -1,7 +1,8 @@
 import type * as C from '@contracts/src'
 import { contentHash, cyrb53 } from '@contracts/src'
 import { ago, ahead, uid } from './util'
-import { TELECOM_SCHEMA, HOUSING_SCHEMA, telecomRows, housingRows, buildProfile, type Row } from './seed-data'
+import { TELECOM_SCHEMA, HOUSING_SCHEMA, telecomRows, housingRows, buildProfile, demoDatasets, type Row } from './seed-data'
+import { buildTemplateSpec, PIPELINE_TYPE_BY_ID } from '@contracts/src'
 import { makeMetrics, makeCurve, testFrom } from './ml'
 import { baselineSpec, twoModelsSpec, fullPlanSpec } from './specs'
 
@@ -41,8 +42,9 @@ function seed(): Store {
   s.projects = [
     { id: 'p1', name: 'Churn télécom', role: 'owner', created_at: ago(60 * 24 * 12) },
     { id: 'p2', name: 'Prix immobilier', role: 'editor', created_at: ago(60 * 24 * 5) },
+    { id: 'p3', name: 'Démo — tous les types de pipeline', role: 'owner', created_at: ago(60 * 24 * 2) },
   ]
-  s.modes = { p1: 'guided', p2: 'auto' }
+  s.modes = { p1: 'guided', p2: 'auto', p3: 'expert' }
   s.datasets = [{ id: 'ds_telecom', project_id: 'p1', name: 'telecom_churn.csv' }, { id: 'ds_housing', project_id: 'p2', name: 'housing.csv' }]
   const tr = telecomRows(), hr = housingRows()
   s.versions = [
@@ -109,6 +111,19 @@ function seed(): Store {
     { id: uid('au'), project_id: 'p1', actor: ai, ts: ago(35), action: 'tool_refused', resource_ref: 'eval.final_test', outcome: 'refused', reason: 'L3 : l\'assistant ne peut pas lancer le test final (approbation humaine requise).', request_id: 'req_seed4' },
   ]
   s.chats = { p1: [] }
+
+  // Projet de démonstration : un dataset et un workflow prêt à l'emploi par nouveau type de pipeline
+  demoDatasets().forEach((d, i) => {
+    const dsv = `dsv_${d.id}_1`, ds = `ds_${d.id}`, wf = `wf_${d.id}`, wfv = `wfv_${d.id}_1`
+    s.datasets.push({ id: ds, project_id: 'p3', name: d.name })
+    s.versions.push({ id: dsv, dataset_id: ds, project_id: 'p3', name: d.name, version: 1, checksum: 'sha256:' + cyrb53(d.name).slice(0, 4) + '…' + cyrb53(d.id).slice(0, 4), schema: d.schema, rows: d.total, uri: `s3://datasets/p3/${d.id}_v1.parquet`, created_at: ago(60 * 24 * 2 - i * 30), status: 'ready' })
+    s.rows[dsv] = d.rows
+    s.profiles[dsv] = buildProfile(dsv, d.schema, d.rows, d.total)
+    const spec = buildTemplateSpec(d.task, dsv, d.schema, { modelName: `${d.id}-model` })
+    s.versionsMeta.push(wv(wfv, wf, null, spec, 'human', user, 60 * 24 * 2 - i * 30, 'Gabarit'))
+    s.workflows.push({ id: wf, project_id: 'p3', name: `${PIPELINE_TYPE_BY_ID[d.task].label} — ${d.name.replace('.csv', '')}`, created_at: ago(60 * 24 * 2 - i * 30), latest_version_id: wfv })
+  })
+  s.chats.p3 = []
   return s
 }
 

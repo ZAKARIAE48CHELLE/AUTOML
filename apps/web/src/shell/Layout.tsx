@@ -9,6 +9,7 @@ import { PageTransition, TopLoader } from '@/components/Motion'
 import { dataApi } from '@/api/data'
 import { ChatPanel } from '@/modules/assistant/ChatPanel'
 import { clsx } from '@/lib/format'
+import { ThemeToggle } from '@/lib/theme'
 
 const NAV = [
   { to: '/data', label: 'Données', icon: Database, owner: 'E1' },
@@ -49,6 +50,7 @@ export function Layout() {
               {projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><ChevronsUpDown className="-ml-6 h-3.5 w-3.5 text-slate-400" /></label>
           <span className="text-xs text-slate-400">{project?.role}</span>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <Link to="/assistant/settings" title="Mode de l'assistant : détermine les approbations demandées"><motion.span key={mode} initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 18 }} whileHover={{ scale: 1.06 }} className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium', MODE[mode].c)}><ShieldCheck className="h-3.5 w-3.5" />Mode {MODE[mode].l}</motion.span></Link>
             <button onClick={() => setChat(!chat)} className={clsx('btn inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm', chat ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 bg-white hover:bg-slate-50')}><MessageSquare className="h-4 w-4" />Assistant</button>
           </div>

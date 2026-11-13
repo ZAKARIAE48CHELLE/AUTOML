@@ -1,4 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional
+
+from .contracts import contracts
 from pydantic import BaseModel, ConfigDict, Field
 
 # Common error schema
@@ -45,7 +47,7 @@ class ProjectResponse(Project):
 # Datasets
 class DatasetColumn(BaseModel):
     name: str
-    dtype: Literal["int", "float", "category", "string", "bool"]
+    dtype: Literal[tuple(contracts.DTYPES)]  # type: ignore[valid-type]
     nullable: bool = False
 
 class DatasetVersion(BaseModel):
@@ -131,11 +133,15 @@ class PreprocessTransform(BaseModel):
     label: str
     applies_to: List[str]
     params_schema: Dict[str, Any]
+    category: Optional[str] = None
+    tasks: Optional[List[str]] = None
+    deep_learning: Optional[bool] = None
+    target_safe: Optional[bool] = None
 
 class RecommendationRequest(BaseModel):
     dataset_version_id: str
-    target: str
-    task: Literal["classification", "regression"]
+    target: Optional[str] = None
+    task: Literal[tuple(contracts.TASKS)] = "classification"  # type: ignore[valid-type]
 
 class EvidenceRef(BaseModel):
     source_type: Literal["profile", "run", "execution", "rule", "dataset"]
@@ -201,9 +207,13 @@ class SplitSpec(BaseModel):
     cv_folds: int = Field(5, ge=1)
     val_ratio: Optional[float] = Field(0.1, ge=0, lt=1)
     seed: int = 42
-    target: str
+    target: Optional[str] = None  # requise selon le type de pipeline (règle V11 côté E4)
     group_column: Optional[str] = None
     time_column: Optional[str] = None
+    text_column: Optional[str] = None
+    image_column: Optional[str] = None
+    user_column: Optional[str] = None
+    item_column: Optional[str] = None
 
 class SplitCreate(BaseModel):
     dataset_version_id: str

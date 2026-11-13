@@ -186,7 +186,11 @@ def test_e1_splits(service):
         assert len(c.get("/splits", params={"dataset_version_id": "dsv_churn_v1"}).json()) == 1
 
         # Missing target used to be accepted and then crash GET /splits with a 500.
-        assert_api_error(c.post("/splits", json={"dataset_version_id": "dsv_churn_v1", "split_spec": {}}), 422, "VALIDATION_ERROR")
+        # The target is now optional (clustering has none), but a stratified split still needs one.
+        assert_api_error(c.post("/splits", json={"dataset_version_id": "dsv_churn_v1", "split_spec": {}}), 400, "SPLIT_INVALID")
+        # A target-less split (clustering) is valid and reads back without a target distribution.
+        sid2 = c.post("/splits", json={"dataset_version_id": "dsv_churn_v1", "split_spec": {"strategy": "random", "seed": 7}}).json()["split_id"]
+        assert c.get(f"/splits/{sid2}").json()["target_distribution"] == []
         assert_api_error(c.post("/splits", json={"dataset_version_id": "dsv_churn_v1", "split_spec": {"target": "nope"}}), 400, "SPLIT_INVALID")
         assert_api_error(c.post("/splits", json={"dataset_version_id": "dsv_churn_v1", "split_spec": {"target": "churn", "test_ratio": 1.5}}), 422)
         assert_api_error(c.post("/splits", json={"dataset_version_id": "nope", "split_spec": {"target": "churn"}}), 404)
@@ -225,7 +229,10 @@ def test_e1_error_format(service):
     m = service("e1-data-service")
     with TestClient(m.app) as c:
         assert_api_error(c.get("/no-such-route"), 404, "NOT_FOUND")
-        assert_api_error(c.post("/preprocessing/recommendations", json={"dataset_version_id": "dsv_churn_v1"}), 422, "VALIDATION_ERROR")
+        # Classification needs a target; clustering does not (catalogue template instead).
+        assert_api_error(c.post("/preprocessing/recommendations", json={"dataset_version_id": "dsv_churn_v1"}), 400, "TARGET_REQUIRED")
+        r = c.post("/preprocessing/recommendations", json={"dataset_version_id": "dsv_churn_v1", "task": "clustering"})
+        assert r.status_code == 200 and r.json()["rule_ids"] == ["R-TPL-clustering"]
         assert_api_error(c.post("/preprocessing/recommendations",
                                 json={"dataset_version_id": "dsv_churn_v1", "target": "nope", "task": "classification"}), 400, "TARGET_NOT_FOUND")
 
@@ -239,7 +246,11 @@ def test_e2_training_service(service):
         assert c.get("/health/live").json()["service"] == "e2-training-service"
         assert c.get("/health/ready").json()["database"]["status"] == "connected"
         assert len(c.get("/models/catalog").json()) >= 3
-        assert c.get("/models/catalog", params={"modality": "image"}).json() == []
+        # Every pipeline type has models; vision keeps a classic (non deep-learning) option.
+        images = c.get("/models/catalog", params={"modality": "image"}).json()
+        assert any(not m["deep_learning"] for m in images) and any(m["deep_learning"] for m in images)
+        assert c.get("/models/catalog", params={"modality": "audio"}).json() == []
+        assert {m["id"] for m in c.get("/models/catalog", params={"task": "recommendation"}).json()} >= {"als", "popularity"}
         assert c.get("/training/resources").json()["concurrency"] > 0
         assert len(c.get("/experiments").json()) > 0
         r = c.post("/inference/predict", json={"model_version_id": "mv_xgb_prod",
@@ -284,8 +295,15 @@ def spec_with(nodes, edges, target="churn"):
             "metadata": {"task": "classification", "target": target, "origin": "human"}}
 
 
+# Paramètres requis par le catalogue partagé (packages/contracts) pour chaque type de nœud.
+NODE_DEFAULTS = {
+    "data.split": {"strategy": "stratified", "test_ratio": 0.2, "cv_folds": 5, "seed": 42, "target": "churn"},
+    "train.model": {"primary_metric": "f1", "seed": 42},
+}
+
+
 def node(id_, type_, **params):
-    return {"id": id_, "type": type_, "type_version": "1.0", "params": params}
+    return {"id": id_, "type": type_, "type_version": "1.0", "params": {**NODE_DEFAULTS.get(type_, {}), **params}}
 
 
 def edge(id_, a, ap, b, bp):
@@ -344,7 +362,7 @@ def test_e4_execution_requires_approvals(service):
 
         # An approval is bound to a content hash: a modified version needs a new one.
         spec = dict(m.DEFAULT_SPEC, nodes=[dict(n) for n in m.DEFAULT_SPEC["nodes"]])
-        spec["nodes"][2] = node("node_train", "train.model", model_id="model_rf")
+        spec["nodes"][2] = node("node_train", "train.model", model_id="random_forest")
         v2 = c.post("/workflows/wf_churn_01/versions", json={"parent_version_id": "wfv_01", "spec": spec}).json()["version_id"]
         assert_api_error(c.post("/executions", json={"workflow_version_id": v2, "approval_ids": ["appr_01"]}), 403)
 
@@ -366,10 +384,10 @@ def test_e4_l3_approval_is_individual_and_consumed(service):
     with TestClient(m.app) as c:
         spec = spec_with([node("ds", "data.dataset", dataset_version_id="dsv_churn_v1"),
                           node("sp", "data.split"),
-                          node("tr", "train.model", model_id="model_rf"),
+                          node("tr", "train.model", model_id="random_forest"),
                           node("ft", "eval.final_test")],
                          [edge("e1", "ds", "dataset", "sp", "dataset"), edge("e2", "sp", "split", "tr", "split"),
-                          edge("e3", "tr", "run", "ft", "run"), edge("e4", "sp", "split", "ft", "split")])
+                          edge("e3", "tr", "run", "ft", "run")])
         r = c.post("/workflows", json={"project_id": "p_churn", "name": "l3", "spec": spec})
         vid = r.json()["version_id"]
         l2 = c.post("/approvals", json={"workflow_version_id": vid, "operation_classes": ["L2"], "node_ids": ["tr"]}).json()["approval_id"]
@@ -403,7 +421,7 @@ def test_e4_structural_validation_blocks_execution(service):
         # The catalog's port types make a well-typed cycle impossible, so exercise the cycle detector directly.
         from app.policy import structure_issues
         cyc = spec_with([node("a", "eval.compare"), node("b", "eval.compare")], [])
-        cyc["edges"] = [edge("e1", "a", "leaderboard", "b", "runs"), edge("e2", "b", "leaderboard", "a", "runs")]
+        cyc["edges"] = [edge("e1", "a", "best", "b", "runs"), edge("e2", "b", "best", "a", "runs")]
         assert "S_CYCLE" in {i["code"] for i in structure_issues(cyc, m.CATALOG)}
 
 
@@ -423,7 +441,7 @@ def test_e4_auto_mode_plan_approval(service, monkeypatch):
         assert r.json()["approval"]["scope"] == "version"
         # A lineage approval keeps covering descendant versions of the approved one.
         spec = dict(m.DEFAULT_SPEC, nodes=[dict(n) for n in m.DEFAULT_SPEC["nodes"]])
-        spec["nodes"][2] = node("node_train", "train.model", model_id="model_rf")
+        spec["nodes"][2] = node("node_train", "train.model", model_id="random_forest")
         v2 = c.post("/workflows/wf_churn_01/versions", json={"parent_version_id": "wfv_01", "spec": spec}).json()["version_id"]
         assert c.post("/executions", json={"workflow_version_id": v2, "approval_ids": [plan]}).status_code == 202
 
@@ -447,7 +465,7 @@ def test_e4_execution_lifecycle_exports_promotions(service):
         assert_api_error(c.post("/exports", json={"execution_id": "exec_01", "include_data": True}), 403, "APPROVAL_REQUIRED")
         exp = c.post("/exports", json={"execution_id": "exec_01"}).json()["export_id"]
         man = c.get(f"/exports/{exp}").json()
-        assert man["dataset_refs"] == ["dsv_churn_v1"] and man["model_configs"][0]["model_id"] == "model_xgb"
+        assert man["dataset_refs"] == ["dsv_churn_v1"] and man["model_configs"][0]["model_id"] == "gradient_boosting"
 
         assert_api_error(c.post("/registry/promotions", json={"model_version_id": "mv_xgb_prod", "alias": "production",
                                                               "approval_id": "appr_01"}), 403, "APPROVAL_REQUIRED")

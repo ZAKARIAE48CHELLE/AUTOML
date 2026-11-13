@@ -1,3 +1,4 @@
+import re
 """CSV ingestion, type inference, profiling and split helpers for E1.
 
 Works on a bounded sample (PREVIEW_MAX_ROWS) kept in the database; the full row
@@ -49,6 +50,10 @@ def _pick_delimiter(first_line: str) -> str:
     return best if counts[best] > 0 else ","
 
 
+_IMAGE_RE = re.compile(r"\.(jpe?g|png|bmp|gif|webp|tiff?)$", re.I)
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?")
+
+
 def infer_dtype(values: List[Optional[str]]) -> Tuple[str, bool]:
     present = [v.strip() for v in values if not _is_na(v)]
     nullable = len(present) < len(values)
@@ -60,6 +65,13 @@ def infer_dtype(values: List[Optional[str]]) -> Tuple[str, bool]:
         return "float", nullable
     if all(v.lower() in ("true", "false") for v in present):
         return "bool", nullable
+    sample = present[:200]
+    if all(_IMAGE_RE.search(v) for v in sample):
+        return "image_path", nullable
+    if all(_DATE_RE.match(v) for v in sample):
+        return "datetime", nullable
+    if sum(len(v) for v in sample) / len(sample) > 40 and sum(" " in v for v in sample) > 0.8 * len(sample):
+        return "text", nullable
     uniq = len(set(present))
     if uniq <= 20 and uniq <= 0.5 * len(present):
         return "category", nullable

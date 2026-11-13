@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { validationToast } from '@/components/Feedback'
 import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PreprocessStep, SplitSpec, ValidationReport, Task } from '@contracts/src'
@@ -16,7 +17,7 @@ type Tab = 'preview' | 'profile' | 'splits' | 'prep'
 export function DatasetDetail() {
   const { datasetId } = useParams(); const [tab, setTab] = useState<Tab>('preview')
   const dq = useQuery({ queryKey: ['dataset', datasetId], queryFn: () => dataApi.dataset(datasetId!), refetchInterval: (s) => (s.state.data?.versions.some((v) => v.status === 'importing') ? 800 : false) })
-  if (dq.isLoading) return <Spinner />
+  if (dq.isLoading) return <Spinner shape="detail" />
   if (dq.error) return <ErrorBanner error={dq.error} />
   const d = dq.data!; const v = d.versions[d.versions.length - 1]
   return (
@@ -36,7 +37,7 @@ export function DatasetDetail() {
 function PreviewTab({ datasetId, versionId }: { datasetId: string; versionId: string }) {
   const [page, setPage] = useState(0); const size = 15
   const q = useQuery({ queryKey: ['preview', datasetId, versionId, page], queryFn: () => dataApi.preview(datasetId, versionId, size, page * size), placeholderData: (p) => p })
-  if (q.isLoading) return <Spinner />
+  if (q.isLoading) return <Spinner shape="table" />
   if (q.error) return <ErrorBanner error={q.error} />
   const p = q.data!
   return (
@@ -49,7 +50,7 @@ function PreviewTab({ datasetId, versionId }: { datasetId: string; versionId: st
 function ProfileTab({ datasetId, versionId }: { datasetId: string; versionId: string }) {
   const qc = useQueryClient(); const [started, setStarted] = useState(false)
   const q = useQuery({ queryKey: ['profile', versionId], queryFn: () => dataApi.profile(datasetId, versionId), retry: false, refetchInterval: (s) => (s.state.data && !isProfile(s.state.data) ? 700 : false) })
-  const start = useMutation({ mutationFn: () => dataApi.startProfile(datasetId, versionId), onSuccess: () => { setStarted(true); qc.invalidateQueries({ queryKey: ['profile', versionId] }) } })
+  const start = useMutation({ meta: { toast: 'Profilage lancé' }, mutationFn: () => dataApi.startProfile(datasetId, versionId), onSuccess: () => { setStarted(true); qc.invalidateQueries({ queryKey: ['profile', versionId] }) } })
   const r = q.data
   if (r && isProfile(r)) return (
     <div className="space-y-4">
@@ -72,11 +73,11 @@ function SplitsTab({ versionId, schema }: { versionId: string; schema: { name: s
   const qc = useQueryClient(); const nt = NODE_TYPE_BY_ID['data.split']
   const [spec, setSpec] = useState<Record<string, any>>({ strategy: 'stratified', test_ratio: 0.2, cv_folds: 5, seed: 42, target: schema[schema.length - 1].name })
   const q = useQuery({ queryKey: ['splits', versionId], queryFn: () => dataApi.splits(versionId) })
-  const create = useMutation({ mutationFn: () => dataApi.createSplit(versionId, spec as SplitSpec), onSuccess: () => qc.invalidateQueries({ queryKey: ['splits', versionId] }) })
+  const create = useMutation({ meta: { toast: 'Découpage créé' }, mutationFn: () => dataApi.createSplit(versionId, spec as SplitSpec), onSuccess: () => qc.invalidateQueries({ queryKey: ['splits', versionId] }) })
   const cols = schema.map((c) => ({ value: c.name, label: `${c.name} (${c.dtype})` }))
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2">{q.isLoading ? <Spinner /> : !q.data?.length ? <EmptyState title="Aucun split" hint="Un split fige les indices train / validation / test de façon déterministe. Le jeu de test reste réservé à l'évaluation finale." /> : (
+      <div className="lg:col-span-2">{q.isLoading ? <Spinner shape="table" /> : !q.data?.length ? <EmptyState title="Aucun split" hint="Un split fige les indices train / validation / test de façon déterministe. Le jeu de test reste réservé à l'évaluation finale." /> : (
         <Table head={['Split', 'Stratégie', 'Train', 'Validation', 'Test', 'Plis', 'Checksum']}>{q.data.map((s) => <tr key={s.id}><td className="td font-mono text-xs">{shortId(s.id)}</td><td className="td">{s.split_spec.strategy}</td><td className="td">{fmtNum(s.counts.train)}</td><td className="td">{fmtNum(s.counts.validation)}</td><td className="td">{fmtNum(s.counts.test)}</td><td className="td">{s.split_spec.cv_folds}</td><td className="td font-mono text-xs text-slate-500">{s.checksum}</td></tr>)}</Table>)}
         <p className="mt-2 text-xs text-slate-500">Les indices du jeu de test ne sont jamais exposés ici (accès réservé à l'évaluation finale).</p></div>
       <Card title="Nouveau split">
@@ -93,9 +94,9 @@ function PrepTab({ versionId, schema }: { versionId: string; schema: { name: str
   const task: Task = ['float'].includes(schema.find((c) => c.name === target)?.dtype ?? '') ? 'regression' : 'classification'
   const specs = useQuery({ queryKey: ['specs', versionId], queryFn: () => dataApi.specs(versionId) })
   const splits = useQuery({ queryKey: ['splits', versionId], queryFn: () => dataApi.splits(versionId) })
-  const rec = useMutation({ mutationFn: () => dataApi.recommend(versionId, target, task), onSuccess: (r) => { setSteps(r.spec.steps); setReport(undefined) } })
-  const val = useMutation({ mutationFn: () => dataApi.validatePreprocess(versionId, steps, target, splitId || undefined), onSuccess: setReport })
-  const save = useMutation({ mutationFn: () => dataApi.saveSpec(versionId, steps), onSuccess: () => qc.invalidateQueries({ queryKey: ['specs', versionId] }) })
+  const rec = useMutation({ meta: { toast: 'Recommandation appliquée' }, mutationFn: () => dataApi.recommend(versionId, target, task), onSuccess: (r) => { setSteps(r.spec.steps); setReport(undefined) } })
+  const val = useMutation({ meta: { toast: validationToast }, mutationFn: () => dataApi.validatePreprocess(versionId, steps, target, splitId || undefined), onSuccess: setReport })
+  const save = useMutation({ meta: { toast: 'Spécification enregistrée' }, mutationFn: () => dataApi.saveSpec(versionId, steps), onSuccess: () => qc.invalidateQueries({ queryKey: ['specs', versionId] }) })
   const [prevSpec, setPrevSpec] = useState('')
   const prev = useQuery({ queryKey: ['specprev', prevSpec, splitId], queryFn: () => dataApi.specPreview(prevSpec, splitId), enabled: !!prevSpec && !!splitId })
   return (

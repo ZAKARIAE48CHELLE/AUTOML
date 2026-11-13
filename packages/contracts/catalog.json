@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.1.0",
   "node_types": [
     {
       "type": "data.dataset",
@@ -58,8 +58,7 @@
           "strategy",
           "test_ratio",
           "cv_folds",
-          "seed",
-          "target"
+          "seed"
         ],
         "properties": {
           "strategy": {
@@ -103,17 +102,44 @@
           "target": {
             "type": "string",
             "title": "Colonne cible",
-            "x-source": "columns"
+            "x-source": "columns",
+            "x-role": "target"
           },
           "group_column": {
             "type": "string",
             "title": "Colonne de groupe",
-            "x-source": "columns"
+            "x-source": "columns",
+            "x-role": "group_column"
           },
           "time_column": {
             "type": "string",
             "title": "Colonne temporelle",
-            "x-source": "columns"
+            "x-source": "columns",
+            "x-role": "time_column"
+          },
+          "text_column": {
+            "type": "string",
+            "title": "Colonne de texte",
+            "x-source": "columns",
+            "x-role": "text_column"
+          },
+          "image_column": {
+            "type": "string",
+            "title": "Colonne chemin d'image",
+            "x-source": "columns",
+            "x-role": "image_column"
+          },
+          "user_column": {
+            "type": "string",
+            "title": "Colonne utilisateur",
+            "x-source": "columns",
+            "x-role": "user_column"
+          },
+          "item_column": {
+            "type": "string",
+            "title": "Colonne article",
+            "x-source": "columns",
+            "x-role": "item_column"
           }
         }
       },
@@ -162,11 +188,22 @@
                     "impute_median",
                     "impute_mean",
                     "impute_most_frequent",
+                    "drop_columns",
                     "onehot",
                     "ordinal",
                     "standard_scale",
                     "minmax_scale",
-                    "drop_columns"
+                    "pca",
+                    "date_features",
+                    "lag_features",
+                    "rolling_features",
+                    "text_clean",
+                    "tfidf",
+                    "text_embed",
+                    "image_resize",
+                    "image_normalize",
+                    "image_augment",
+                    "min_interactions"
                   ]
                 },
                 "columns": {
@@ -240,7 +277,17 @@
               "recall",
               "rmse",
               "mae",
-              "r2"
+              "r2",
+              "mape",
+              "smape",
+              "silhouette",
+              "davies_bouldin",
+              "calinski_harabasz",
+              "average_precision",
+              "precision_at_k",
+              "recall_at_k",
+              "ndcg_at_k",
+              "map_at_k"
             ],
             "default": "f1"
           },
@@ -334,7 +381,17 @@
               "recall",
               "rmse",
               "mae",
-              "r2"
+              "r2",
+              "mape",
+              "smape",
+              "silhouette",
+              "davies_bouldin",
+              "calinski_harabasz",
+              "average_precision",
+              "precision_at_k",
+              "recall_at_k",
+              "ndcg_at_k",
+              "map_at_k"
             ],
             "default": "f1"
           },
@@ -449,6 +506,1329 @@
         }
       },
       "params_doc": "name"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "f1",
+      "label": "F1",
+      "direction": "maximize"
+    },
+    {
+      "id": "accuracy",
+      "label": "Exactitude",
+      "direction": "maximize"
+    },
+    {
+      "id": "roc_auc",
+      "label": "ROC AUC",
+      "direction": "maximize"
+    },
+    {
+      "id": "precision",
+      "label": "Précision",
+      "direction": "maximize"
+    },
+    {
+      "id": "recall",
+      "label": "Rappel",
+      "direction": "maximize"
+    },
+    {
+      "id": "rmse",
+      "label": "RMSE",
+      "direction": "minimize"
+    },
+    {
+      "id": "mae",
+      "label": "MAE",
+      "direction": "minimize"
+    },
+    {
+      "id": "r2",
+      "label": "R²",
+      "direction": "maximize"
+    },
+    {
+      "id": "mape",
+      "label": "MAPE (%)",
+      "direction": "minimize"
+    },
+    {
+      "id": "smape",
+      "label": "sMAPE (%)",
+      "direction": "minimize"
+    },
+    {
+      "id": "silhouette",
+      "label": "Silhouette",
+      "direction": "maximize"
+    },
+    {
+      "id": "davies_bouldin",
+      "label": "Davies-Bouldin",
+      "direction": "minimize"
+    },
+    {
+      "id": "calinski_harabasz",
+      "label": "Calinski-Harabasz",
+      "direction": "maximize"
+    },
+    {
+      "id": "average_precision",
+      "label": "Précision moyenne (AP)",
+      "direction": "maximize"
+    },
+    {
+      "id": "precision_at_k",
+      "label": "Précision@k",
+      "direction": "maximize"
+    },
+    {
+      "id": "recall_at_k",
+      "label": "Rappel@k",
+      "direction": "maximize"
+    },
+    {
+      "id": "ndcg_at_k",
+      "label": "NDCG@k",
+      "direction": "maximize"
+    },
+    {
+      "id": "map_at_k",
+      "label": "MAP@k",
+      "direction": "maximize"
+    }
+  ],
+  "preprocess_steps": [
+    {
+      "type": "impute_median",
+      "label": "Imputation (médiane)",
+      "category": "cleaning",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "impute_mean",
+      "label": "Imputation (moyenne)",
+      "category": "cleaning",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "impute_most_frequent",
+      "label": "Imputation (valeur la plus fréquente)",
+      "category": "cleaning",
+      "applies_to": [
+        "int",
+        "float",
+        "category",
+        "string",
+        "bool",
+        "datetime",
+        "text",
+        "image_path"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "drop_columns",
+      "label": "Exclure des colonnes",
+      "category": "cleaning",
+      "applies_to": [
+        "int",
+        "float",
+        "category",
+        "string",
+        "bool",
+        "datetime",
+        "text",
+        "image_path"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation",
+        "image_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "onehot",
+      "label": "Encodage one-hot",
+      "category": "encoding",
+      "applies_to": [
+        "category",
+        "string",
+        "bool"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "max_categories": {
+            "type": "integer",
+            "title": "Catégories max",
+            "default": 30,
+            "minimum": 2,
+            "maximum": 500
+          }
+        }
+      }
+    },
+    {
+      "type": "ordinal",
+      "label": "Encodage ordinal",
+      "category": "encoding",
+      "applies_to": [
+        "category",
+        "string"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "standard_scale",
+      "label": "Standardisation",
+      "category": "scaling",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "minmax_scale",
+      "label": "Mise à l'échelle min-max",
+      "category": "scaling",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection",
+        "forecasting",
+        "text_classification",
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "type": "pca",
+      "label": "Réduction de dimension (ACP)",
+      "category": "features",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "classification",
+        "regression",
+        "clustering",
+        "anomaly_detection"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_components": {
+            "type": "integer",
+            "title": "Composantes",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 500
+          }
+        }
+      }
+    },
+    {
+      "type": "date_features",
+      "label": "Variables calendaires",
+      "category": "time",
+      "applies_to": [
+        "datetime"
+      ],
+      "tasks": [
+        "forecasting",
+        "regression",
+        "classification",
+        "anomaly_detection"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "title": "Composantes",
+            "items": {
+              "type": "string",
+              "enum": [
+                "year",
+                "month",
+                "day",
+                "weekday",
+                "hour",
+                "is_weekend"
+              ]
+            },
+            "default": [
+              "month",
+              "weekday"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "lag_features",
+      "label": "Valeurs retardées (lags)",
+      "category": "time",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "forecasting"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "lags": {
+            "type": "array",
+            "title": "Retards",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "default": [
+              1,
+              7,
+              14
+            ]
+          }
+        }
+      },
+      "target_safe": true
+    },
+    {
+      "type": "rolling_features",
+      "label": "Statistiques glissantes",
+      "category": "time",
+      "applies_to": [
+        "int",
+        "float"
+      ],
+      "tasks": [
+        "forecasting"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "integer",
+            "title": "Fenêtre",
+            "default": 7,
+            "minimum": 2,
+            "maximum": 365
+          },
+          "stats": {
+            "type": "array",
+            "title": "Statistiques",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mean",
+                "std",
+                "min",
+                "max"
+              ]
+            },
+            "default": [
+              "mean"
+            ]
+          }
+        }
+      },
+      "target_safe": true
+    },
+    {
+      "type": "text_clean",
+      "label": "Nettoyage de texte",
+      "category": "text",
+      "applies_to": [
+        "text",
+        "string"
+      ],
+      "tasks": [
+        "text_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "lowercase": {
+            "type": "boolean",
+            "title": "Minuscules",
+            "default": true
+          },
+          "strip_punctuation": {
+            "type": "boolean",
+            "title": "Retirer la ponctuation",
+            "default": true
+          },
+          "stopwords": {
+            "type": "string",
+            "title": "Mots vides",
+            "default": "fr",
+            "enum": [
+              "none",
+              "fr",
+              "en"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "tfidf",
+      "label": "Vectorisation TF-IDF",
+      "category": "text",
+      "applies_to": [
+        "text",
+        "string"
+      ],
+      "tasks": [
+        "text_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "max_features": {
+            "type": "integer",
+            "title": "Termes max",
+            "default": 20000,
+            "minimum": 100,
+            "maximum": 200000
+          },
+          "ngram_max": {
+            "type": "integer",
+            "title": "n-grammes max",
+            "default": 2,
+            "minimum": 1,
+            "maximum": 3
+          }
+        }
+      }
+    },
+    {
+      "type": "text_embed",
+      "label": "Plongements de phrases (G-DL)",
+      "category": "text",
+      "applies_to": [
+        "text",
+        "string"
+      ],
+      "tasks": [
+        "text_classification"
+      ],
+      "deep_learning": true,
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "encoder": {
+            "type": "string",
+            "title": "Encodeur",
+            "default": "multilingual-e5-small",
+            "enum": [
+              "multilingual-e5-small",
+              "camembert-base"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "image_resize",
+      "label": "Redimensionnement",
+      "category": "image",
+      "applies_to": [
+        "image_path"
+      ],
+      "tasks": [
+        "image_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "title": "Taille (px)",
+            "default": 224,
+            "minimum": 32,
+            "maximum": 1024
+          }
+        }
+      }
+    },
+    {
+      "type": "image_normalize",
+      "label": "Normalisation des pixels",
+      "category": "image",
+      "applies_to": [
+        "image_path"
+      ],
+      "tasks": [
+        "image_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "title": "Préréglage",
+            "default": "imagenet",
+            "enum": [
+              "imagenet",
+              "zero_one"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "image_augment",
+      "label": "Augmentation (entraînement)",
+      "category": "image",
+      "applies_to": [
+        "image_path"
+      ],
+      "tasks": [
+        "image_classification"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "flip": {
+            "type": "boolean",
+            "title": "Miroir horizontal",
+            "default": true
+          },
+          "rotate_deg": {
+            "type": "integer",
+            "title": "Rotation max (°)",
+            "default": 15,
+            "minimum": 0,
+            "maximum": 90
+          }
+        }
+      }
+    },
+    {
+      "type": "min_interactions",
+      "label": "Filtre d'interactions minimales",
+      "category": "interactions",
+      "applies_to": [
+        "int",
+        "float",
+        "category",
+        "string",
+        "bool",
+        "datetime",
+        "text",
+        "image_path"
+      ],
+      "tasks": [
+        "recommendation"
+      ],
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "min_user": {
+            "type": "integer",
+            "title": "Par utilisateur",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "min_item": {
+            "type": "integer",
+            "title": "Par article",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 1000
+          }
+        }
+      }
+    }
+  ],
+  "pipeline_types": [
+    {
+      "id": "classification",
+      "label": "Classification",
+      "description": "Prédire une catégorie (churn, fraude, diagnostic…).",
+      "modality": "tabular",
+      "shape": "diamond",
+      "color": "#2563eb",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Colonne cible (catégorie)",
+          "required": true,
+          "dtypes": [
+            "category",
+            "string",
+            "bool",
+            "int"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "stratified",
+        "random",
+        "group",
+        "time"
+      ],
+      "default_split": "stratified",
+      "metrics": [
+        "f1",
+        "accuracy",
+        "roc_auc",
+        "precision",
+        "recall"
+      ],
+      "default_metric": "f1",
+      "step_types": [
+        "impute_median",
+        "impute_mean",
+        "impute_most_frequent",
+        "drop_columns",
+        "onehot",
+        "ordinal",
+        "standard_scale",
+        "minmax_scale",
+        "pca",
+        "date_features"
+      ],
+      "template": {
+        "models": [
+          "logistic_regression",
+          "random_forest"
+        ],
+        "steps": [
+          {
+            "type": "impute_median",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          },
+          {
+            "type": "impute_most_frequent",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "onehot",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "standard_scale",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "deep_learning_only": false,
+      "short_label": "Classification"
+    },
+    {
+      "id": "regression",
+      "label": "Régression",
+      "description": "Prédire une valeur numérique (prix, durée, quantité…).",
+      "modality": "tabular",
+      "shape": "wave",
+      "color": "#0891b2",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Colonne cible (numérique)",
+          "required": true,
+          "dtypes": [
+            "int",
+            "float"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "random",
+        "group",
+        "time"
+      ],
+      "default_split": "random",
+      "metrics": [
+        "rmse",
+        "mae",
+        "r2"
+      ],
+      "default_metric": "rmse",
+      "step_types": [
+        "impute_median",
+        "impute_mean",
+        "impute_most_frequent",
+        "drop_columns",
+        "onehot",
+        "ordinal",
+        "standard_scale",
+        "minmax_scale",
+        "pca",
+        "date_features"
+      ],
+      "template": {
+        "models": [
+          "ridge",
+          "gradient_boosting"
+        ],
+        "steps": [
+          {
+            "type": "impute_median",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          },
+          {
+            "type": "impute_most_frequent",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "onehot",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "standard_scale",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "deep_learning_only": false,
+      "short_label": "Régression"
+    },
+    {
+      "id": "clustering",
+      "label": "Clustering",
+      "description": "Regrouper des individus similaires sans étiquette (segmentation).",
+      "modality": "tabular",
+      "shape": "clusters",
+      "color": "#7c3aed",
+      "supervised": false,
+      "roles": [],
+      "split_strategies": [
+        "random"
+      ],
+      "default_split": "random",
+      "metrics": [
+        "silhouette",
+        "davies_bouldin",
+        "calinski_harabasz"
+      ],
+      "default_metric": "silhouette",
+      "step_types": [
+        "impute_median",
+        "impute_mean",
+        "impute_most_frequent",
+        "drop_columns",
+        "onehot",
+        "ordinal",
+        "standard_scale",
+        "minmax_scale",
+        "pca",
+        "date_features"
+      ],
+      "template": {
+        "models": [
+          "kmeans",
+          "gaussian_mixture"
+        ],
+        "steps": [
+          {
+            "type": "impute_median",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          },
+          {
+            "type": "impute_most_frequent",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "onehot",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "standard_scale",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "deep_learning_only": false,
+      "short_label": "Clustering"
+    },
+    {
+      "id": "anomaly_detection",
+      "label": "Détection d'anomalies",
+      "description": "Repérer les observations atypiques (fraude, pannes, intrusions).",
+      "modality": "tabular",
+      "shape": "spike",
+      "color": "#dc2626",
+      "supervised": false,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Étiquette d'anomalie (optionnelle, pour évaluer)",
+          "required": false,
+          "dtypes": [
+            "bool",
+            "int",
+            "category"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "random",
+        "stratified",
+        "time"
+      ],
+      "default_split": "random",
+      "metrics": [
+        "average_precision",
+        "roc_auc",
+        "precision_at_k"
+      ],
+      "default_metric": "average_precision",
+      "step_types": [
+        "impute_median",
+        "impute_mean",
+        "impute_most_frequent",
+        "drop_columns",
+        "onehot",
+        "ordinal",
+        "standard_scale",
+        "minmax_scale",
+        "pca",
+        "date_features"
+      ],
+      "template": {
+        "models": [
+          "isolation_forest",
+          "local_outlier_factor"
+        ],
+        "steps": [
+          {
+            "type": "impute_median",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          },
+          {
+            "type": "onehot",
+            "dtypes": [
+              "category",
+              "string",
+              "bool"
+            ]
+          },
+          {
+            "type": "standard_scale",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {
+          "contamination": {
+            "type": "number",
+            "title": "Part d'anomalies attendue",
+            "default": 0.05,
+            "minimum": 0.001,
+            "maximum": 0.5
+          },
+          "k": {
+            "type": "integer",
+            "title": "k (précision@k)",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 10000
+          }
+        }
+      },
+      "deep_learning_only": false,
+      "short_label": "Anomalies"
+    },
+    {
+      "id": "forecasting",
+      "label": "Prévision de séries temporelles",
+      "description": "Prévoir les valeurs futures d'une série (ventes, charge, trafic).",
+      "modality": "timeseries",
+      "shape": "trend",
+      "color": "#059669",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Série à prévoir",
+          "required": true,
+          "dtypes": [
+            "int",
+            "float"
+          ]
+        },
+        {
+          "role": "time_column",
+          "label": "Colonne temporelle",
+          "required": true,
+          "dtypes": [
+            "datetime",
+            "int"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "time"
+      ],
+      "default_split": "time",
+      "metrics": [
+        "mae",
+        "rmse",
+        "mape",
+        "smape"
+      ],
+      "default_metric": "mae",
+      "step_types": [
+        "impute_median",
+        "impute_mean",
+        "drop_columns",
+        "onehot",
+        "standard_scale",
+        "date_features",
+        "lag_features",
+        "rolling_features"
+      ],
+      "template": {
+        "models": [
+          "seasonal_naive",
+          "gbm_lag_regressor"
+        ],
+        "steps": [
+          {
+            "type": "impute_median",
+            "dtypes": [
+              "int",
+              "float"
+            ]
+          },
+          {
+            "type": "date_features",
+            "role": "time_column"
+          },
+          {
+            "type": "lag_features",
+            "role": "target"
+          },
+          {
+            "type": "rolling_features",
+            "role": "target"
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon de prévision (pas)",
+            "default": 14,
+            "minimum": 1,
+            "maximum": 365
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Fréquence",
+            "default": "D",
+            "enum": [
+              "H",
+              "D",
+              "W",
+              "M"
+            ]
+          }
+        }
+      },
+      "deep_learning_only": false,
+      "short_label": "Prévision"
+    },
+    {
+      "id": "text_classification",
+      "label": "Classification de texte (NLP)",
+      "description": "Classer des textes : avis, tickets, e-mails, sentiments.",
+      "modality": "text",
+      "shape": "speech",
+      "color": "#d97706",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Colonne cible (catégorie)",
+          "required": true,
+          "dtypes": [
+            "category",
+            "string",
+            "bool",
+            "int"
+          ]
+        },
+        {
+          "role": "text_column",
+          "label": "Colonne de texte",
+          "required": true,
+          "dtypes": [
+            "text",
+            "string"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "stratified",
+        "random"
+      ],
+      "default_split": "stratified",
+      "metrics": [
+        "f1",
+        "accuracy",
+        "precision",
+        "recall"
+      ],
+      "default_metric": "f1",
+      "step_types": [
+        "text_clean",
+        "tfidf",
+        "text_embed",
+        "drop_columns",
+        "impute_most_frequent",
+        "onehot"
+      ],
+      "template": {
+        "models": [
+          "logistic_regression",
+          "linear_svm"
+        ],
+        "steps": [
+          {
+            "type": "text_clean",
+            "role": "text_column"
+          },
+          {
+            "type": "tfidf",
+            "role": "text_column"
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "deep_learning_only": false,
+      "short_label": "Texte (NLP)"
+    },
+    {
+      "id": "image_classification",
+      "label": "Vision : classification d'images",
+      "description": "Reconnaître le contenu d'images (défauts, espèces, documents).",
+      "modality": "image",
+      "shape": "frame",
+      "color": "#db2777",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "target",
+          "label": "Colonne cible (classe)",
+          "required": true,
+          "dtypes": [
+            "category",
+            "string",
+            "bool",
+            "int"
+          ]
+        },
+        {
+          "role": "image_column",
+          "label": "Colonne chemin d'image",
+          "required": true,
+          "dtypes": [
+            "image_path",
+            "string"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "stratified",
+        "random"
+      ],
+      "default_split": "stratified",
+      "metrics": [
+        "accuracy",
+        "f1",
+        "precision",
+        "recall"
+      ],
+      "default_metric": "accuracy",
+      "step_types": [
+        "image_resize",
+        "image_normalize",
+        "image_augment",
+        "drop_columns"
+      ],
+      "template": {
+        "models": [
+          "hog_svm",
+          "resnet_transfer"
+        ],
+        "steps": [
+          {
+            "type": "image_resize",
+            "role": "image_column"
+          },
+          {
+            "type": "image_normalize",
+            "role": "image_column"
+          },
+          {
+            "type": "image_augment",
+            "role": "image_column"
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "deep_learning_only": false,
+      "short_label": "Vision"
+    },
+    {
+      "id": "recommendation",
+      "label": "Recommandation",
+      "description": "Suggérer des articles à des utilisateurs à partir de leurs interactions.",
+      "modality": "interactions",
+      "shape": "network",
+      "color": "#4f46e5",
+      "supervised": true,
+      "roles": [
+        {
+          "role": "user_column",
+          "label": "Colonne utilisateur",
+          "required": true,
+          "dtypes": [
+            "string",
+            "category",
+            "int"
+          ]
+        },
+        {
+          "role": "item_column",
+          "label": "Colonne article",
+          "required": true,
+          "dtypes": [
+            "string",
+            "category",
+            "int"
+          ]
+        },
+        {
+          "role": "target",
+          "label": "Note / force d'interaction (optionnelle)",
+          "required": false,
+          "dtypes": [
+            "int",
+            "float"
+          ]
+        }
+      ],
+      "split_strategies": [
+        "random",
+        "time"
+      ],
+      "default_split": "random",
+      "metrics": [
+        "ndcg_at_k",
+        "precision_at_k",
+        "recall_at_k",
+        "map_at_k"
+      ],
+      "default_metric": "ndcg_at_k",
+      "step_types": [
+        "min_interactions",
+        "drop_columns"
+      ],
+      "template": {
+        "models": [
+          "popularity",
+          "als"
+        ],
+        "steps": [
+          {
+            "type": "min_interactions"
+          }
+        ]
+      },
+      "options_schema": {
+        "type": "object",
+        "properties": {
+          "k": {
+            "type": "integer",
+            "title": "k (taille de la liste)",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "deep_learning_only": false,
+      "short_label": "Recommandation"
     }
   ]
 }

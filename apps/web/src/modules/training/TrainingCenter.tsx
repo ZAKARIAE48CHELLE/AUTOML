@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { validationToast } from '@/components/Feedback'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Rocket } from 'lucide-react'
@@ -29,12 +30,12 @@ export function TrainingCenter() {
   const [prepared, setPrepared] = useState<{ wf: string; version: WorkflowVersion; report: ValidationReport }>()
   const [confirm, setConfirm] = useState(false)
 
-  const prepare = useMutation({ mutationFn: async () => {
+  const prepare = useMutation({ meta: { toast: (r: { report: { status: 'ok' | 'warning' | 'error' } }) => validationToast(r.report) }, mutationFn: async () => {
     const t = await studioApi.fromTemplate({ template_id: 'quick_train', dataset_version_id: selected!.latest_version_id, target, model_id: modelId, params, primary_metric: metric })
     const report = await studioApi.validate(t.workflow_id, t.version_id); const version = await studioApi.version(t.workflow_id, t.version_id)
     return { wf: t.workflow_id, version, report }
   }, onSuccess: setPrepared })
-  const run = useMutation({ mutationFn: async () => {
+  const run = useMutation({ meta: { toast: 'Entraînement lancé' }, mutationFn: async () => {
     const p = prepared!; const ids = await createApprovals(p.version.id, p.version.spec, mode)
     const { execution_id } = await studioApi.execute(p.version.id, ids)
     for (let i = 0; i < 40; i++) { const e = await studioApi.execution(execution_id); const j = e.node_runs.find((n) => n.job_ref); if (j) return { job: j.job_ref! }; if (e.status === 'failed') break; await new Promise((r) => setTimeout(r, 500)) }
@@ -63,7 +64,7 @@ export function TrainingCenter() {
             <ValidationReportView report={prepared.report} />
             <div className="mt-4"><Button disabled={blocked} onClick={() => setConfirm(true)}><Rocket className="h-4 w-4" />Approuver et lancer</Button>{blocked && <span className="ml-2 text-xs text-red-600">Corrigez les erreurs avant de lancer.</span>}</div></Card>
             : <Note>Renseignez le formulaire puis « Préparer et valider » : vous verrez le rapport de validation (structure, données, entraînement, politique) avant tout lancement.</Note>}
-          <Card title="Jobs récents">{jobs.isLoading ? <Spinner /> : !jobs.data?.length ? <EmptyState title="Aucun job" hint="Les jobs apparaissent ici dès qu'une exécution lance un entraînement." /> : (
+          <Card title="Jobs récents">{jobs.isLoading ? <Spinner shape="table" /> : !jobs.data?.length ? <EmptyState title="Aucun job" hint="Les jobs apparaissent ici dès qu'une exécution lance un entraînement." /> : (
             <Table head={['Job', 'Modèle', 'Statut', 'Progression', 'Créé']}>{jobs.data.slice(0, 8).map((j) => <tr key={j.id}><td className="td"><Link className="font-mono text-xs text-brand-700 hover:underline" to={`/training/jobs/${j.id}`}>{shortId(j.id)}</Link></td><td className="td">{j.model_id}</td><td className="td"><StatusBadge status={j.status} /></td><td className="td"><JobProgress value={j.progress} status={j.status} /></td><td className="td text-slate-500">{fmtDate(j.created_at)}</td></tr>)}</Table>)}</Card>
         </div>
       </div>

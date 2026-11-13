@@ -8,6 +8,7 @@ import { trainingLayer, taskFor, RESOURCES } from './training'
 import { startExecution } from '../executor'
 import { subscribe, eventsOf } from '../bus'
 import { fullPlanSpec, baselineSpec } from '../specs'
+import { buildTemplateSpec, pipelineType } from '@contracts/src'
 import { cyrb53 } from '@contracts/src'
 
 const wfv = (id: string) => db.versionsMeta.find((v) => v.id === id) ?? (() => { throw notFound('WorkflowVersion', id) })()
@@ -42,11 +43,12 @@ export function fullValidate(version: C.WorkflowVersion): C.ValidationReport {
     const splitNode = spec.nodes.find((n) => n.type === 'data.split'); const target = splitNode?.params.target
     if (dsNode && !db.versions.some((v) => v.id === dsv)) di.push({ code: 'D_DATASET', severity: 'error', node_id: dsNode.id, path: 'dataset_version_id', message: `Version de dataset introuvable : ${dsv ?? '—'}.` })
     else if (dsv) for (const n of spec.nodes) {
-      if (n.type === 'data.split') di.push(...dataLayerForSplit(dsv, n.params, n.id).issues)
-      if (n.type === 'data.preprocess') di.push(...dataLayerForPreprocess(dsv, n.params.steps ?? [], target, n.id).issues)
+      if (n.type === 'data.split') di.push(...dataLayerForSplit(dsv, n.params, n.id, spec.metadata.task).issues)
+      if (n.type === 'data.preprocess') di.push(...dataLayerForPreprocess(dsv, n.params.steps ?? [], target, n.id, ['text_column', 'image_column', 'user_column', 'item_column', 'time_column', 'group_column'].map((k) => splitNode?.params[k]).filter(Boolean)).issues)
     }
     const task = spec.metadata.task
-    if (dsv && target && taskFor(dsv, target) !== task) ti.push({ code: 'T_TASK_MISMATCH', severity: 'warning', message: `La tâche déclarée (${task}) ne correspond pas au type de la cible « ${target} ».` })
+    const tabular = (t: C.Task) => t === 'classification' || t === 'regression'
+    if (dsv && target && tabular(task) && tabular(taskFor(dsv, target)) && taskFor(dsv, target) !== task) ti.push({ code: 'T_TASK_MISMATCH', severity: 'warning', message: `La tâche déclarée (${task}) ne correspond pas au type de la cible « ${target} ».` })
     for (const n of spec.nodes) {
       if (n.type === 'train.model') ti.push(...trainingLayer({ model_id: n.params.model_id, params: n.params.params, primary_metric: n.params.primary_metric, task }, n.id).issues)
       if (n.type === 'train.tune') ti.push(...trainingLayer({ model_id: n.params.model_id, primary_metric: n.params.primary_metric, task, budget: n.params.budget }, n.id).issues)
@@ -126,16 +128,24 @@ export function registerStudio() {
   })
   route('POST', '/workflows/from-template', ({ body }) => {
     const b = body; const dsv = db.versions.find((v) => v.id === b?.dataset_version_id); if (!dsv) throw notFound('DatasetVersion', b?.dataset_version_id)
-    if (!b.target) throw bad('VALIDATION', 'target requis.')
-    const task = taskFor(dsv.id, b.target); const metric = b.primary_metric ?? (task === 'classification' ? 'f1' : 'rmse')
+    const task: C.Task = b.task ?? taskFor(dsv.id, b.target); const pt = pipelineType(task)
+    if (!b.target && pt.roles.some((r) => r.role === 'target' && r.required)) throw bad('VALIDATION', `target requis pour ${pt.label}.`)
+    const metric = b.primary_metric && pt.metrics.includes(b.primary_metric) ? b.primary_metric : pt.default_metric
+    if (!TEMPLATES.some((t) => t.id === b.template_id)) throw bad('TEMPLATE_UNKNOWN', `Gabarit inconnu : ${b.template_id}.`)
     let spec: C.WorkflowSpec
-    if (b.template_id === 'quick_train') {
+    if (task !== 'classification' && task !== 'regression') {
+      // Autres types : gabarit du catalogue (rôles de colonnes, étapes et modèles adaptés au type).
+      spec = buildTemplateSpec(task, dsv.id, dsv.schema, { target: b.target, metric, modelName: b.model_name, gateDL: db.catalogGateDL, full: b.template_id !== 'quick_train' })
+      const t = spec.nodes.find((n) => n.type === 'train.model')
+      if (b.template_id === 'quick_train' && t) { spec.nodes = spec.nodes.filter((n) => n.type !== 'train.model' || n.id === t.id); spec.edges = spec.edges.filter((e) => spec.nodes.some((n) => n.id === e.from.node) && spec.nodes.some((n) => n.id === e.to.node)); if (b.model_id) t.params = { model_id: b.model_id, params: b.params ?? {}, primary_metric: metric, seed: b.seed ?? 42 } }
+    } else if (b.template_id === 'quick_train') {
       spec = baselineSpec(dsv.id, b.target); spec.metadata.task = task; spec.metadata.objective = { primary_metric: metric, direction: metric === 'rmse' || metric === 'mae' ? 'minimize' : 'maximize' }
       spec.nodes.find((n) => n.type === 'data.preprocess')!.params.steps = recommend(dsv.id, b.target).spec.steps
       const t = spec.nodes.find((n) => n.type === 'train.model')!; t.params = { model_id: b.model_id ?? 'random_forest', params: b.params ?? {}, primary_metric: metric, seed: b.seed ?? 42 }
     } else if (b.template_id === 'full_pipeline') { spec = fullPlanSpec(dsv.id, b.target, metric, undefined, 'human', task); spec.nodes.find((n) => n.type === 'data.preprocess')!.params.steps = recommend(dsv.id, b.target).spec.steps; const r = spec.nodes.find((n) => n.type === 'model.register'); if (r && b.model_name) r.params.name = b.model_name }
     else throw bad('TEMPLATE_UNKNOWN', `Gabarit inconnu : ${b.template_id}.`)
-    const { workflow, version } = createWorkflow(dsv.project_id, b.name ?? `${TEMPLATES.find((t) => t.id === b.template_id)!.label} — ${b.target}`, spec, 'human', userActor)
+    spec.metadata.task = task
+    const { workflow, version } = createWorkflow(dsv.project_id, b.name ?? `${TEMPLATES.find((t) => t.id === b.template_id)!.label} — ${b.target ?? pt.label}`, spec, 'human', userActor)
     return { workflow_id: workflow.id, version_id: version.id, content_hash: version.content_hash }
   }, { status: 201 })
 

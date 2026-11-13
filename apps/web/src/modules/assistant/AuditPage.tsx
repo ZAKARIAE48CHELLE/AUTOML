@@ -14,7 +14,7 @@ export function AuditPage() {
       <PageHeader title="Journal des décisions" subtitle="Propositions, validations, approbations, exécutions et refus d'outils. Chaque entrée est traçable (request_id)." />
       <div className="mb-3 flex gap-2"><select className="input w-56" aria-label="Action" value={action} onChange={(e) => setAction(e.target.value)}><option value="">Toutes les actions</option>{ACTIONS.map((a) => <option key={a}>{a}</option>)}</select><select className="input w-44" aria-label="Acteur" value={actor} onChange={(e) => setActor(e.target.value)}><option value="">Tous les acteurs</option><option value="user">Utilisateur</option><option value="assistant">Assistant</option><option value="system">Système</option></select></div>
       <ErrorBanner error={q.error} />
-      {q.isLoading ? <Spinner /> : !q.data?.length ? <EmptyState title="Aucun événement" /> : (
+      {q.isLoading ? <Spinner shape="table" /> : !q.data?.length ? <EmptyState title="Aucun événement" /> : (
         <Table head={['Date', 'Acteur', 'Action', 'Ressource', 'Résultat', 'Détail']}>{q.data.map((e) => <tr key={e.id} className={e.outcome === 'refused' ? 'bg-amber-50/60' : ''}><td className="td whitespace-nowrap text-slate-500">{fmtDate(e.ts)}</td><td className="td">{e.actor.type}</td><td className="td font-mono text-xs">{e.action}</td><td className="td font-mono text-xs">{e.resource_ref ?? '—'}</td><td className="td"><StatusBadge status={e.outcome === 'refused' ? 'warning' : e.outcome} /></td><td className="td text-xs text-slate-600">{e.reason ?? '—'}<div className="font-mono text-[10px] text-slate-400">{e.request_id}{e.approval_id ? ` · ${e.approval_id}` : ''}</div></td></tr>)}</Table>)}
     </>)
 }

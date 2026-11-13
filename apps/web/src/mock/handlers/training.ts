@@ -1,5 +1,5 @@
 import type * as C from '@contracts/src'
-import { cyrb53, aggregateReport, layerStatus, validateSchema } from '@contracts/src'
+import { cyrb53, aggregateReport, layerStatus, validateSchema, inferTask, CATALOG_VERSION } from '@contracts/src'
 import { db, logAudit } from '../db'
 import { route } from '../router'
 import { ApiErr, notFound, bad, uid, nowIso, sleep, clone } from '../util'
@@ -10,10 +10,10 @@ export const jobWaiters: Record<string, Promise<C.TrainingJob>> = {}
 const resolvers: Record<string, (j: C.TrainingJob) => void> = {}
 
 export function taskFor(dsvId: string, target?: string): C.Task {
-  const col = db.versions.find((v) => v.id === dsvId)?.schema.find((c) => c.name === target)
-  return col && (col.dtype === 'float' || (col.dtype === 'int' && col.name !== 'churn')) ? 'regression' : 'classification'
+  return inferTask(db.versions.find((v) => v.id === dsvId)?.schema ?? [], target)
 }
-const splitCtx = (splitId: string) => { const s = db.splits.find((x) => x.id === splitId); if (!s) throw notFound('Split', splitId); const v = db.versions.find((x) => x.id === s.dataset_version_id)!; return { s, v, project_id: v.project_id, task: taskFor(v.id, s.split_spec.target) } }
+/** Contexte d'un split. `task` : type déclaré par le workflow (prioritaire) — sinon déduit du dataset. */
+const splitCtx = (splitId: string, task?: C.Task) => { const s = db.splits.find((x) => x.id === splitId); if (!s) throw notFound('Split', splitId); const v = db.versions.find((x) => x.id === s.dataset_version_id)!; return { s, v, project_id: v.project_id, task: task ?? taskFor(v.id, s.split_spec.target) } }
 
 /** Couche « training » (E2) : paramètres dans les plages, compatibilité modèle / tâche, métrique, ressources. */
 export function trainingLayer(cfg: { model_id?: string; params?: Record<string, unknown>; primary_metric?: string; task?: C.Task; budget?: { trials: number; max_minutes: number } }, nodeId?: string): C.ValidationLayer {
@@ -49,7 +49,7 @@ function startJob(job: C.TrainingJob, steps: number, onSuccess: (j: C.TrainingJo
   })()
 }
 export function buildRun(cfg: any, ref?: C.ExecutionRef, name?: string): C.ExperimentRun {
-  const { s, v, project_id, task } = splitCtx(cfg.split_id); const spec = db.specs.find((x) => x.id === cfg.preprocess_spec_id)
+  const { s, v, project_id, task } = splitCtx(cfg.split_id, cfg.task); const spec = db.specs.find((x) => x.id === cfg.preprocess_spec_id)
   const { metrics, std } = makeMetrics(cfg.model_id, cfg.params ?? {}, cfg.seed ?? 42, task, spec?.steps.length ?? 0)
   const exec = ref && db.executions.find((e) => e.id === ref.execution_id)
   const model = MODELS.find((m) => m.id === cfg.model_id)!
@@ -63,16 +63,16 @@ export function registerTraining() {
   route('POST', '/training/validate', ({ body }) => {
     const b = body ?? {}; const issues: C.ValidationIssue[] = []
     let task: C.Task | undefined
-    if (b.split_id) { try { task = splitCtx(b.split_id).task } catch { issues.push({ code: 'T_SPLIT', severity: 'error', path: 'split_id', message: `Split introuvable : ${b.split_id}.` }) } }
+    if (b.split_id) { try { task = splitCtx(b.split_id, b.task).task } catch { issues.push({ code: 'T_SPLIT', severity: 'error', path: 'split_id', message: `Split introuvable : ${b.split_id}.` }) } }
     if (b.preprocess_spec_id && !db.specs.some((s) => s.id === b.preprocess_spec_id)) issues.push({ code: 'T_SPEC', severity: 'error', path: 'preprocess_spec_id', message: `PreprocessSpec introuvable : ${b.preprocess_spec_id}.` })
     const layer = trainingLayer({ model_id: b.model_id, params: b.params, primary_metric: b.primary_metric, task, budget: b.budget })
     layer.issues.unshift(...issues); layer.status = layerStatus(layer.issues)
-    const r = aggregateReport({ id: 'training_config' }, { schema_version: '1.0', catalog_version: '1.0.0', nodes: [], edges: [], metadata: { task: task ?? 'classification', origin: 'human' } }, [layer])
+    const r = aggregateReport({ id: 'training_config' }, { schema_version: '1.0', catalog_version: CATALOG_VERSION, nodes: [], edges: [], metadata: { task: task ?? 'classification', origin: 'human' } }, [layer])
     r.subject = { kind: 'training_config', id: 'draft' }; r.content_hash = 'tc_' + cyrb53(JSON.stringify(b)); return r
   })
   route('POST', '/training/jobs', ({ body }) => {
     const b = body; if (!b?.execution_ref) throw bad('EXECUTION_REF_REQUIRED', 'execution_ref requis : l\'entraînement ne se lance que via une exécution.')
-    const { task } = splitCtx(b.split_id)
+    const { task } = splitCtx(b.split_id, b.task)
     const layer = trainingLayer({ ...b, task }); if (layer.status === 'error') throw bad('TRAINING_INVALID', layer.issues[0].message, layer.issues)
     const job: C.TrainingJob = { id: uid('job'), status: 'queued', progress: 0, model_id: b.model_id, created_at: nowIso(), execution_ref: b.execution_ref }
     db.trainingJobs.unshift(job)
@@ -87,7 +87,7 @@ export function registerTraining() {
   }, { internal: true })
   route('POST', '/tuning/studies', ({ body }) => {
     const b = body; if (!b?.execution_ref) throw bad('EXECUTION_REF_REQUIRED', 'execution_ref requis.')
-    const { task } = splitCtx(b.base_config.split_id)
+    const { task } = splitCtx(b.base_config.split_id, b.base_config.task)
     const layer = trainingLayer({ ...b.base_config, primary_metric: b.primary_metric, task, budget: b.budget }); if (layer.status === 'error') throw bad('TRAINING_INVALID', layer.issues[0].message, layer.issues)
     const job: C.TrainingJob = { id: uid('job'), status: 'queued', progress: 0, model_id: b.base_config.model_id, created_at: nowIso(), execution_ref: b.execution_ref }
     db.trainingJobs.unshift(job)

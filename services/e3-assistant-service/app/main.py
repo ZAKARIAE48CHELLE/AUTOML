@@ -1,6 +1,10 @@
 import datetime
+import os
+import re
 import logging
 import uuid
+
+import httpx
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request
@@ -22,6 +26,11 @@ from .schemas import (
 async def lifespan(app: FastAPI):
     init_db()
     yield
+
+from .contracts import contracts
+
+E1_SERVICE_URL = os.getenv("E1_SERVICE_URL", "")
+E4_SERVICE_URL = os.getenv("E4_SERVICE_URL", "")
 
 app = FastAPI(
     title="AI Studio - E3 Agentic AI Assistant Service",
@@ -185,48 +194,105 @@ def send_message(req: ChatMessageRequest):
 # -------------------------------------------------------------
 # Goal Parsing & Proposal Endpoints
 # -------------------------------------------------------------
+GOALS_DB: Dict[str, Dict[str, Any]] = {}
+
+
+def dataset_version(version_id: str) -> Optional[Dict[str, Any]]:
+    """Schéma et projet d'une version de dataset (E1). None si E1 n'est pas configuré ou injoignable."""
+    if not E1_SERVICE_URL:
+        return None
+    try:
+        r = httpx.get(f"{E1_SERVICE_URL}/dataset-versions/{version_id}", timeout=2.0)
+        if r.status_code == 200:
+            return r.json()
+    except httpx.HTTPError as e:
+        logger.warning(f"E1 dataset lookup failed for {version_id}: {e}")
+    return None
+
+
 @app.post("/assistant/goals/parse", response_model=GoalParseResponse, tags=["Goals"])
 def parse_goal(req: GoalParseRequest):
-    g_id = f"goal_{uuid.uuid4().hex[:8]}"
-    return GoalParseResponse(
-        goal=GoalSpec(
-            id=g_id,
-            task="classification",
-            target="churn",
-            objective=ObjectiveSpec(primary_metric="f1", direction="maximize"),
-            constraints=["Durée maximale d'entraînement : 10 minutes", "Modèle interprétable"],
-            ambiguities=[]
-        ),
-        questions=[],
-        warnings=["Vérifiez le déséquilibre potentiel des classes avant le split stratifié."],
-        simulated=False
-    )
+    """Structure un objectif : type de pipeline (intention exprimée, sinon forme du dataset), cible, métrique."""
+    text = req.text or ""
+    version = dataset_version(req.dataset_version_id) or {}
+    schema = version.get("schema") or []
+    lower = text.lower()
+    mentioned = next((c["name"] for c in schema if c["name"].lower() in lower), None)
+    if not mentioned and not schema:
+        m = re.search(r"(?:prédire|predire|prévoir|predict|forecast|estimer)\s+(?:le |la |les |l'|the )?([\w-]+)", lower)
+        mentioned = m.group(1) if m else None
+    task = contracts.detect_task_from_text(text) or (contracts.infer_task(schema, mentioned) if schema else "classification")
+    pt = contracts.pipeline_type(task)
+    roles = contracts.guess_roles(schema, task, mentioned) if schema else ({"target": mentioned} if mentioned and task != "clustering" else {})
+    target = roles.get("target")
+    questions: List[str] = []
+    ambiguities: List[str] = []
+    needs_target = any(r["role"] == "target" and r["required"] for r in pt["roles"])
+    if needs_target and not target:
+        ambiguities.append("Cible non identifiée.")
+        questions.append("Quelle colonne faut-il prédire ?")
+    elif target and target != mentioned:
+        ambiguities.append(f"Cible non précisée : « {target} » supposée.")
+        questions.append(f"La cible est-elle bien « {target} » ?")
+    metric = pt["default_metric"]
+    for m_id, rx in (("accuracy", r"accuracy|exactitude"), ("roc_auc", r"\bauc\b"), ("mae", r"\bmae\b"), ("rmse", r"rmse"),
+                     ("mape", r"mape"), ("ndcg_at_k", r"ndcg"), ("silhouette", r"silhouette")):
+        if re.search(rx, lower) and m_id in pt["metrics"]:
+            metric = m_id
+    constraints = []
+    mm = re.search(r"(\d+)\s*min", lower)
+    if mm:
+        constraints.append(f"Durée maximale d'entraînement : {mm.group(1)} minutes")
+    goal = GoalSpec(id=f"goal_{uuid.uuid4().hex[:8]}", task=task, target=target,
+                    objective=ObjectiveSpec(primary_metric=metric, direction=contracts.metric_direction(metric)),
+                    constraints=constraints, ambiguities=ambiguities)
+    GOALS_DB[goal.id] = {**goal.model_dump(), "dataset_version_id": req.dataset_version_id, "project_id": version.get("project_id")}
+    warnings = ["Vérifiez le déséquilibre potentiel des classes avant le split stratifié."] if task == "classification" else []
+    return GoalParseResponse(goal=goal, questions=questions, warnings=warnings, simulated=False)
+
 
 @app.post("/assistant/proposals", response_model=PlanProposal, tags=["Proposals"])
 def create_proposal(req: PlanProposalRequest):
     p_id = f"prop_{uuid.uuid4().hex[:8]}"
+    goal = GOALS_DB.get(req.goal_id) or {}
+    task = goal.get("task", "classification")
+    pt = contracts.pipeline_type(task)
+    wf_id, wfv_id = "wf_churn_01", "wfv_01"  # repli historique si E4 est injoignable
+    if E4_SERVICE_URL:
+        body = {"template_id": f"tpl_{task}", "task": task, "origin": "ai", "goal_id": req.goal_id,
+                "project_id": req.project_id or goal.get("project_id"),
+                "params": {"dataset_version_id": req.dataset_version_id, "target": goal.get("target")},
+                "primary_metric": (goal.get("objective") or {}).get("primary_metric"),
+                "name": f"Plan IA — {goal.get('target') or pt['label']}"}
+        try:
+            r = httpx.post(f"{E4_SERVICE_URL}/workflows/from-template", json=body, timeout=5.0)
+            if r.status_code == 201:
+                wf_id, wfv_id = r.json()["workflow_id"], r.json()["version_id"]
+            else:
+                logger.warning(f"E4 refused the proposal workflow: {r.status_code} {r.text[:200]}")
+        except httpx.HTTPError as e:
+            logger.warning(f"E4 proposal workflow creation failed: {e}")
     prop = PlanProposal(
         id=p_id,
         goal_id=req.goal_id,
-        workflow_id="wf_churn_01",
-        workflow_version_id="wfv_01",
+        workflow_id=wf_id,
+        workflow_version_id=wfv_id,
         rationale={
-            "architecture": "Pipeline complet : Ingestion -> Nettoyage -> Split stratifié (80/20) -> Entraînement XGBoost & Tuning Optuna.",
-            "policy": "Une approbation L2 requise avant exécution du tuning."
+            "architecture": f"Gabarit {pt['label']} : dataset → split ({pt['default_split']}) → prétraitement adapté → modèles → comparaison → test final.",
+            "policy": "Approbations requises selon le mode de gouvernance avant exécution.",
         },
-        assumptions=["Données tabulaires nettoyées sans fuites temporelles."],
+        assumptions=[f"Type de pipeline : {pt['label']}."] + ([f"Cible : « {goal['target']} »."] if goal.get("target") else []),
         warnings=[],
         evidence_refs=[
-            {"source_type": "rule", "source_id": "R-POL-01", "summary": "Matrice de gouvernance Mode Guidé appliquée"}
+            {"source_type": "rule", "source_id": f"R-TPL-{task}", "summary": f"Gabarit du catalogue partagé pour {pt['label']}"},
+            {"source_type": "rule", "source_id": "R-POL-01", "summary": "Matrice de gouvernance appliquée"},
         ],
-        required_approvals=[
-            RequiredApproval(operation_class="L2", node_ids=["tune_01"], individual=False)
-        ],
-        validation_report_ref="val_churn_01",
+        required_approvals=[RequiredApproval(operation_class="L2", node_ids=[], individual=False)],
         simulated=False
     )
     PROPOSALS_DB[p_id] = prop.model_dump()
     return prop
+
 
 @app.get("/assistant/proposals/{id}", response_model=PlanProposal, tags=["Proposals"])
 def get_proposal(id: str):

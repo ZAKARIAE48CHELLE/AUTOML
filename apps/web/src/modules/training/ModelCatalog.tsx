@@ -6,7 +6,7 @@ import { Card, ErrorBanner, PageHeader, Spinner, Note } from '@/components/ui'
 export function ModelCatalog() {
   const q = useQuery({ queryKey: ['models', 'all'], queryFn: () => trainingApi.models() })
   const res = useQuery({ queryKey: ['resources'], queryFn: trainingApi.resources })
-  if (q.isLoading) return <Spinner />
+  if (q.isLoading) return <Spinner shape="cards" />
   return (
     <>
       <PageHeader title="Catalogue des modèles" subtitle="Modèles disponibles, paramètres, prérequis et déterminisme. Le deep learning reste fermé tant que la porte G-DL n'est pas validée." />

@@ -49,27 +49,11 @@ def seed_initial_data(session: Session):
     try:
         if session.query(ModelCatalogModel).count() == 0:
             logger.info("Seeding initial data into E2 database...")
-            rf = ModelCatalogModel(
-                id="model_rf",
-                family="ensemble",
-                name="Random Forest Classifier",
-                description="Bagging ensemble of decision trees for tabular classification",
-                default_params={"n_estimators": 100, "max_depth": 10}
-            )
-            xgb = ModelCatalogModel(
-                id="model_xgb",
-                family="gradient_boosting",
-                name="XGBoost Classifier",
-                description="Extreme gradient boosting for tabular data with high precision",
-                default_params={"n_estimators": 150, "learning_rate": 0.05, "max_depth": 6}
-            )
-            lgb = ModelCatalogModel(
-                id="model_lgb",
-                family="gradient_boosting",
-                name="LightGBM Classifier",
-                description="Fast, distributed, high performance gradient boosting framework",
-                default_params={"n_estimators": 120, "learning_rate": 0.03, "num_leaves": 31}
-            )
+            from .contracts import contracts
+            catalog_rows = [ModelCatalogModel(id=m["id"], family=m["family"], name=m["label"],
+                                              description=f"{m['family']} — {', '.join(m['task'])}",
+                                              default_params={k: p["default"] for k, p in m["params_schema"].get("properties", {}).items() if "default" in p})
+                            for m in contracts.MODELS]
             job = TrainingJobModel(
                 id="job_train_rf_01",
                 project_id="p_churn",
@@ -78,9 +62,7 @@ def seed_initial_data(session: Session):
                 status="succeeded",
                 metrics={"accuracy": 0.892, "roc_auc": 0.934, "f1": 0.865, "loss": 0.241}
             )
-            session.add(rf)
-            session.add(xgb)
-            session.add(lgb)
+            session.add_all(catalog_rows)
             session.add(job)
             session.commit()
             logger.info("E2 initial data seeded.")

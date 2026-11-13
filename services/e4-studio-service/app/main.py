@@ -28,6 +28,7 @@ from .schemas import (
 
 logger = logging.getLogger(__name__)
 
+E1_SERVICE_URL = os.getenv("E1_SERVICE_URL", "")
 E2_SERVICE_URL = os.getenv("E2_SERVICE_URL")  # e.g. http://e2-training-service:8002
 E3_SERVICE_URL = os.getenv("E3_SERVICE_URL")  # e.g. http://e3-assistant-service:8003
 CURRENT_USER = "u_dev1"  # no authentication yet
@@ -104,97 +105,36 @@ def iso(dt: datetime.datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-# The 8 canonical node types from packages/contracts/catalog.json
-CANONICAL_NODE_TYPES = [
-    {
-        "type": "data.dataset", "version": "1.0", "label": "Dataset", "owner": "E1", "operation_class": "L0",
-        "adapter": "GET /datasets/{dataset_id}",
-        "input_ports": [], "output_ports": [{"name": "dataset", "type": "Dataset", "multiple": False}],
-        "params_schema": {"type": "object", "required": ["dataset_version_id"], "properties": {"dataset_version_id": {"type": "string"}}},
-        "params_doc": "dataset_version_id"
-    },
-    {
-        "type": "data.split", "version": "1.0", "label": "Split", "owner": "E1", "operation_class": "L1",
-        "adapter": "POST /splits",
-        "input_ports": [{"name": "dataset", "type": "Dataset", "multiple": False}],
-        "output_ports": [{"name": "split", "type": "Split", "multiple": False}],
-        "params_schema": {"type": "object", "properties": {"strategy": {"type": "string", "default": "stratified"}, "test_ratio": {"type": "number", "default": 0.2}}},
-        "params_doc": "strategy, test_ratio"
-    },
-    {
-        "type": "data.preprocess", "version": "1.0", "label": "Prétraitement", "owner": "E1", "operation_class": "L1",
-        "adapter": "POST /preprocessing/specs",
-        "input_ports": [{"name": "split", "type": "Split", "multiple": False}],
-        "output_ports": [{"name": "spec", "type": "PreprocessSpecRef", "multiple": False}],
-        "params_schema": {"type": "object", "properties": {"steps": {"type": "array"}}},
-        "params_doc": "steps"
-    },
-    {
-        "type": "train.model", "version": "1.0", "label": "Entraîner modèle", "owner": "E2", "operation_class": "L2",
-        "adapter": "POST /training/jobs",
-        "input_ports": [{"name": "split", "type": "Split", "multiple": False}, {"name": "preprocess_spec", "type": "PreprocessSpecRef", "multiple": False}],
-        "output_ports": [{"name": "run", "type": "ModelRun", "multiple": False}],
-        "params_schema": {"type": "object", "required": ["model_id"], "properties": {"model_id": {"type": "string"}, "params": {"type": "object"}}},
-        "params_doc": "model_id, params"
-    },
-    {
-        "type": "train.tune", "version": "1.0", "label": "Optimisation Optuna", "owner": "E2", "operation_class": "L2",
-        "adapter": "POST /tuning/studies",
-        "input_ports": [{"name": "split", "type": "Split", "multiple": False}, {"name": "preprocess_spec", "type": "PreprocessSpecRef", "multiple": False}],
-        "output_ports": [{"name": "leaderboard", "type": "Leaderboard", "multiple": False}],
-        "params_schema": {"type": "object", "required": ["model_id"], "properties": {"model_id": {"type": "string"}, "n_trials": {"type": "integer", "default": 20}}},
-        "params_doc": "model_id, n_trials"
-    },
-    {
-        "type": "eval.compare", "version": "1.0", "label": "Comparer modèles", "owner": "E2", "operation_class": "L0",
-        "adapter": "POST /experiments/compare",
-        "input_ports": [{"name": "runs", "type": "ModelRun", "multiple": True}],
-        "output_ports": [{"name": "leaderboard", "type": "Leaderboard", "multiple": False}],
-        "params_schema": {"type": "object", "properties": {"primary_metric": {"type": "string", "default": "accuracy"}}},
-        "params_doc": "primary_metric"
-    },
-    {
-        "type": "eval.final_test", "version": "1.0", "label": "Évaluation test finale", "owner": "E2", "operation_class": "L3",
-        "adapter": "POST /training/final-evaluation",
-        "input_ports": [{"name": "run", "type": "ModelRun", "multiple": False}, {"name": "split", "type": "Split", "multiple": False}],
-        "output_ports": [{"name": "evaluated_run", "type": "ModelRun", "multiple": False}],
-        "params_schema": {"type": "object", "properties": {}},
-        "params_doc": "none"
-    },
-    {
-        "type": "model.register", "version": "1.0", "label": "Enregistrer modèle", "owner": "E2", "operation_class": "L2",
-        "adapter": "POST /models/registry",
-        "input_ports": [{"name": "run", "type": "ModelRun", "multiple": False}],
-        "output_ports": [{"name": "model", "type": "ModelVersion", "multiple": False}],
-        "params_schema": {"type": "object", "required": ["model_name"], "properties": {"model_name": {"type": "string"}}},
-        "params_doc": "model_name"
-    }
-]
+from .contracts import contracts
+
+# Catalogue partagé (packages/contracts/catalog.json) : plus de copie locale qui diverge du client web.
+CANONICAL_NODE_TYPES = contracts.NODE_TYPES
 CATALOG = {n["type"]: n for n in CANONICAL_NODE_TYPES}
 
+# Un gabarit par type de pipeline (+ identifiants historiques conservés pour la classification).
 STARTER_TEMPLATES = [
-    {
-        "id": "tpl_tabular_classif",
-        "label": "Classification Tabulaire Standard",
-        "description": "Pipeline classique : Ingestion -> Nettoyage -> Split 80/20 -> Random Forest & XGBoost -> Évaluation finale.",
-        "params": ["dataset_version_id", "target"]
-    },
-    {
-        "id": "tpl_optuna_tuning",
-        "label": "AutoML avec Optimisation Hyperparamétrique Optuna",
-        "description": "Exploration bayésienne sur les hyperparamètres XGBoost avec comparaison sur jeu de validation.",
-        "params": ["dataset_version_id", "target", "n_trials"]
-    }
+    {"id": f"tpl_{p['id']}", "label": p["label"], "description": p["description"], "task": p["id"],
+     "params": ["dataset_version_id"] + [r["role"] for r in p["roles"]]}
+    for p in contracts.PIPELINE_TYPES.values()
+] + [
+    {"id": "full_pipeline", "label": "Pipeline complet", "task": None,
+     "description": "Dataset → split → prétraitement → modèles → comparaison → test final → enregistrement (type au choix).", "params": ["dataset_version_id", "target", "task"]},
+    {"id": "quick_train", "label": "Entraînement rapide", "task": None,
+     "description": "Dataset → split → prétraitement recommandé → un modèle → comparaison (type au choix).", "params": ["dataset_version_id", "target", "task"]},
+    {"id": "tpl_tabular_classif", "label": "Classification Tabulaire Standard", "task": "classification",
+     "description": "Pipeline classique : Ingestion -> Nettoyage -> Split 80/20 -> modèles -> Évaluation finale.", "params": ["dataset_version_id", "target"]},
+    {"id": "tpl_optuna_tuning", "label": "AutoML avec Optimisation Hyperparamétrique", "task": "classification",
+     "description": "Exploration des hyperparamètres avec comparaison sur jeu de validation.", "params": ["dataset_version_id", "target", "n_trials"]},
 ]
 
 # Baseline initial workflow
 DEFAULT_SPEC = {
     "schema_version": "1.0.0",
-    "catalog_version": "1.0.0",
+    "catalog_version": contracts.CATALOG_VERSION,
     "nodes": [
         {"id": "node_ds", "type": "data.dataset", "type_version": "1.0", "params": {"dataset_version_id": "dsv_churn_v1"}, "ui": {"x": 100, "y": 150}},
-        {"id": "node_split", "type": "data.split", "type_version": "1.0", "params": {"strategy": "stratified", "test_ratio": 0.2}, "ui": {"x": 350, "y": 150}},
-        {"id": "node_train", "type": "train.model", "type_version": "1.0", "params": {"model_id": "model_xgb", "params": {"n_estimators": 100}}, "ui": {"x": 600, "y": 150}}
+        {"id": "node_split", "type": "data.split", "type_version": "1.0", "params": {"strategy": "stratified", "test_ratio": 0.2, "cv_folds": 5, "seed": 42, "target": "churn"}, "ui": {"x": 350, "y": 150}},
+        {"id": "node_train", "type": "train.model", "type_version": "1.0", "params": {"model_id": "gradient_boosting", "params": {"n_estimators": 100}, "primary_metric": "accuracy", "seed": 42}, "ui": {"x": 600, "y": 150}}
     ],
     "edges": [
         {"id": "e1", "from": {"node": "node_ds", "port": "dataset"}, "to": {"node": "node_split", "port": "dataset"}},
@@ -356,7 +296,13 @@ def health_ready():
 # -------------------------------------------------------------
 @app.get("/catalog/node-types", tags=["Catalog"])
 def get_node_types():
-    return {"catalog_version": "1.0.0", "node_types": [NodeType(**n) for n in CANONICAL_NODE_TYPES]}
+    return {"catalog_version": contracts.CATALOG_VERSION, "node_types": [NodeType(**n) for n in CANONICAL_NODE_TYPES]}
+
+
+@app.get("/catalog/pipeline-types", tags=["Catalog"])
+def get_pipeline_types():
+    """Types de pipeline pris en charge (rôles de colonnes, métriques, étapes, gabarits)."""
+    return {"catalog_version": contracts.CATALOG_VERSION, "pipeline_types": list(contracts.PIPELINE_TYPES.values())}
 
 
 @app.get("/catalog/templates", response_model=List[Template], tags=["Catalog"])
@@ -409,21 +355,52 @@ def create_workflow(req: WorkflowCreateRequest):
     return {"workflow_id": wf_id, "version_id": v_id, "content_hash": chash}
 
 
+def dataset_version(version_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Schéma et projet d'une version de dataset (E1). None si E1 n'est pas configuré ou injoignable."""
+    if not version_id or not E1_SERVICE_URL:
+        return None
+    try:
+        r = httpx.get(f"{E1_SERVICE_URL}/dataset-versions/{version_id}", timeout=2.0)
+        if r.status_code == 200:
+            return r.json()
+    except httpx.HTTPError as e:
+        logger.warning(f"E1 dataset lookup failed for {version_id}: {e}")
+    return None
+
+
 @app.post("/workflows/from-template", status_code=status.HTTP_201_CREATED, tags=["Workflows"])
 def create_from_template(p: Dict[str, Any]):
     template_id = p.get("template_id")
     tpl = next((t for t in STARTER_TEMPLATES if t["id"] == template_id), None)
     if tpl is None:
         raise not_found("Modèle de workflow", template_id)
-    if not p.get("project_id"):
-        raise api_error(400, "BAD_REQUEST", "project_id requis.")
-    spec = json.loads(json.dumps(DEFAULT_SPEC))
+    task = p.get("task") or tpl.get("task") or "classification"
+    if task not in contracts.PIPELINE_TYPES:
+        raise api_error(400, "BAD_REQUEST", f"Type de pipeline inconnu : {task}")
     params = p.get("params") or {}
-    if params.get("dataset_version_id"):
-        spec["nodes"][0]["params"]["dataset_version_id"] = params["dataset_version_id"]
-    if params.get("target"):
-        spec["metadata"]["target"] = params["target"]
-    req = WorkflowCreateRequest(project_id=p["project_id"], name=p.get("name") or tpl["label"], spec=spec, origin="human")
+    dsv = params.get("dataset_version_id") or p.get("dataset_version_id")
+    target = params.get("target") or p.get("target")
+    version = dataset_version(dsv)
+    project_id = p.get("project_id") or (version or {}).get("project_id")
+    if not project_id:
+        raise api_error(400, "BAD_REQUEST", "project_id requis.")
+    origin = p.get("origin") if p.get("origin") in ("human", "ai") else "human"
+    if version or task != "classification" or template_id in ("full_pipeline", "quick_train"):
+        spec = contracts.build_template_spec(task, dsv or "", (version or {}).get("schema") or [], target=target,
+                                             metric=p.get("primary_metric"), origin=origin, goal_id=p.get("goal_id"),
+                                             model_name=p.get("model_name"), full=template_id != "quick_train")
+        if target and not (version or {}).get("schema"):
+            # Sans schéma (E1 injoignable) : la cible indiquée reste appliquée au split et aux métadonnées.
+            spec["metadata"]["target"] = target
+            next(n for n in spec["nodes"] if n["type"] == "data.split")["params"]["target"] = target
+    else:
+        spec = json.loads(json.dumps(DEFAULT_SPEC))
+        if dsv:
+            spec["nodes"][0]["params"]["dataset_version_id"] = dsv
+        if target:
+            spec["metadata"]["target"] = target
+            spec["nodes"][1]["params"]["target"] = target
+    req = WorkflowCreateRequest(project_id=project_id, name=p.get("name") or tpl["label"], spec=spec, origin=origin)
     return create_workflow(req)
 
 
@@ -519,12 +496,16 @@ def build_report(ver: Dict[str, Any], approvals: Optional[List[Dict[str, Any]]] 
     if approvals is None:
         approvals = [a for a in APPROVALS_DB.values() if a["project_id"] == project_id]
     lin = lineage_ids(ver["id"])
-    s_issues = structure_issues(spec, CATALOG)
+    s_issues = structure_issues(spec, CATALOG) + contracts.pipeline_type_issues(spec)
+    if not contracts.is_compatible_catalog(spec.get("catalog_version", "")):
+        s_issues.append({"code": "V9", "severity": "error",
+                         "message": f"Version de catalogue {spec.get('catalog_version')} incompatible (courante : {contracts.CATALOG_VERSION})."})
     p_issues = policy_issues(spec, mode, approvals, ver["content_hash"],
                              lambda a: a["workflow_version_id"] in lin, CATALOG)
-    target = (spec.get("metadata") or {}).get("target")
-    t_issues = [] if target else [{"code": "T_NO_TARGET", "severity": "warning",
-                                   "message": "Aucune colonne cible définie dans metadata.target."}]
+    meta = spec.get("metadata") or {}
+    needs_target = any(r["role"] == "target" and r["required"] for r in contracts.pipeline_type(meta.get("task"))["roles"])
+    t_issues = [] if meta.get("target") or not needs_target else [{"code": "T_NO_TARGET", "severity": "warning",
+                                                                   "message": "Aucune colonne cible définie dans metadata.target."}]
     layers = [
         ValidationLayer(layer="structure", status=layer_status(s_issues), issues=[ValidationIssue(**i) for i in s_issues]),
         ValidationLayer(layer="data", status="ok", issues=[]),  # dataset/split checks are owned by E1

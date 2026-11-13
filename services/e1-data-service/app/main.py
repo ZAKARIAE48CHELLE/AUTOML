@@ -292,6 +292,12 @@ async def import_dataset(file: UploadFile = File(...), project_id: str = Form(..
     return DatasetImportResponse(dataset_id=ds_id, version_id=v_id, job_id=job_id)
 
 
+@app.get("/dataset-versions/{version_id}", response_model=DatasetVersion, tags=["Datasets"])
+def get_dataset_version(version_id: str, db: Session = Depends(get_db)):
+    """Schéma et projet d'une version : utilisé par E3/E4 pour construire des pipelines typés."""
+    return version_to_schema(get_version_or_404(db, version_id))
+
+
 @app.get("/datasets/{id}", response_model=DatasetDetail, tags=["Datasets"])
 def get_dataset(id: str, db: Session = Depends(get_db)):
     d = db.get(DatasetModel, id)
@@ -349,17 +355,10 @@ def start_profile(id: str, dataset_version_id: Optional[str] = None,
 # -------------------------------------------------------------
 # Preprocessing
 # -------------------------------------------------------------
-ALL_DTYPES = ["int", "float", "category", "string", "bool"]
-TRANSFORMS_CATALOG = [
-    {"type": "impute_median", "label": "Imputation (médiane)", "applies_to": ["int", "float"], "params_schema": {"type": "object", "properties": {}}},
-    {"type": "impute_mean", "label": "Imputation (moyenne)", "applies_to": ["int", "float"], "params_schema": {"type": "object", "properties": {}}},
-    {"type": "impute_most_frequent", "label": "Imputation (valeur la plus fréquente)", "applies_to": ALL_DTYPES, "params_schema": {"type": "object", "properties": {}}},
-    {"type": "onehot", "label": "Encodage one-hot", "applies_to": ["category", "string", "bool"], "params_schema": {"type": "object", "properties": {"max_categories": {"type": "integer", "default": 30}}}},
-    {"type": "ordinal", "label": "Encodage ordinal", "applies_to": ["category", "string"], "params_schema": {"type": "object", "properties": {}}},
-    {"type": "standard_scale", "label": "Standardisation", "applies_to": ["int", "float"], "params_schema": {"type": "object", "properties": {}}},
-    {"type": "minmax_scale", "label": "Mise à l'échelle min-max", "applies_to": ["int", "float"], "params_schema": {"type": "object", "properties": {}}},
-    {"type": "drop_columns", "label": "Exclure des colonnes", "applies_to": ALL_DTYPES, "params_schema": {"type": "object", "properties": {}}},
-]
+from .contracts import contracts
+
+# Catalogue des transformations : source unique, le contrat partagé (tous types de pipeline).
+TRANSFORMS_CATALOG = contracts.PREPROCESS_STEPS
 TRANSFORMS_BY_TYPE = {t["type"]: t for t in TRANSFORMS_CATALOG}
 
 
@@ -390,8 +389,22 @@ def _profile_cols(v: DatasetVersionModel) -> Dict[str, Dict[str, Any]]:
 def recommend_preprocessing(req: RecommendationRequest, db: Session = Depends(get_db)):
     v = get_version_or_404(db, req.dataset_version_id)
     cols = schema_by_name(v)
-    if req.target not in cols:
+    if req.target and req.target not in cols:
         raise api_error(400, "TARGET_NOT_FOUND", f"Colonne cible absente du dataset : {req.target}")
+    if req.task not in ("classification", "regression"):
+        # Autres types : gabarit du catalogue partagé, résolu sur les colonnes et rôles du dataset.
+        schema = v.schema_json or []
+        roles = contracts.guess_roles(schema, req.task, req.target)
+        steps = contracts.template_steps(schema, req.task, roles)
+        label = contracts.pipeline_type(req.task)["label"]
+        return RecommendationResponse(
+            spec={"dataset_version_id": v.id, "steps": steps},
+            rule_ids=[f"R-TPL-{req.task}"],
+            evidence_refs=[{"source_type": "rule", "source_id": f"R-TPL-{req.task}",
+                            "summary": f"Gabarit {label} : {', '.join(s['type'] for s in steps) or 'aucune étape'}"}],
+        )
+    if not req.target:
+        raise api_error(400, "TARGET_REQUIRED", "Colonne cible requise pour ce type de pipeline.")
     ids = [n for n in _id_like(v, _profile_cols(v)) if n != req.target]
     features = [c for c in (v.schema_json or []) if c["name"] != req.target and c["name"] not in ids]
     steps = [
@@ -429,7 +442,7 @@ def _validate_steps(db: Session, v: DatasetVersionModel, steps: List[Dict[str, A
                 issues.append(ValidationIssue(code="PP_DTYPE_MISMATCH", severity="error", path=f"steps[{i}].columns",
                                               message=f"{t['label']} ne s'applique pas à {c} ({cols[c]['dtype']}).",
                                               hint=f"Types acceptés : {', '.join(t['applies_to'])}"))
-            if target and c == target and t["type"] != "drop_columns":
+            if target and c == target and t["type"] != "drop_columns" and not t.get("target_safe"):
                 issues.append(ValidationIssue(code="PP_TARGET_TRANSFORMED", severity="error", path=f"steps[{i}].columns",
                                               message=f"La cible {target} ne doit pas être transformée (fuite de données)."))
         if not s.get("columns"):
@@ -557,8 +570,14 @@ def create_split(req: SplitCreate, db: Session = Depends(get_db)):
     v = get_version_or_404(db, req.dataset_version_id)
     spec = req.split_spec
     cols = schema_by_name(v)
-    if spec.target not in cols:
+    if spec.target and spec.target not in cols:
         raise api_error(400, "SPLIT_INVALID", f"Colonne cible absente du dataset : {spec.target}")
+    if spec.strategy == "stratified" and not spec.target:
+        raise api_error(400, "SPLIT_INVALID", "Un split stratifié exige une colonne cible.")
+    for role in ("text_column", "image_column", "user_column", "item_column"):
+        col = getattr(spec, role)
+        if col and col not in cols:
+            raise api_error(400, "SPLIT_INVALID", f"Colonne {role} absente du dataset : {col}")
     if spec.strategy == "group" and (not spec.group_column or spec.group_column not in cols):
         raise api_error(400, "SPLIT_INVALID", "La stratégie « group » exige une group_column existante.")
     if spec.strategy == "time" and (not spec.time_column or spec.time_column not in cols):
@@ -568,7 +587,7 @@ def create_split(req: SplitCreate, db: Session = Depends(get_db)):
     if counts["train"] <= 0 or counts["test"] <= 0:
         raise api_error(400, "SPLIT_INVALID", "Pas assez de lignes pour ce découpage.", counts)
     dist = target_distribution(v.preview_rows or [], spec.target, spec.test_ratio, spec.seed,
-                               stratified=spec.strategy == "stratified")
+                               stratified=spec.strategy == "stratified") if spec.target else []
     checksum = canonical_hash({"dataset_checksum": v.checksum, "split_spec": spec_dict})
     existing = db.query(SplitModel).filter(SplitModel.dataset_version_id == v.id, SplitModel.checksum == checksum).first()
     if existing:

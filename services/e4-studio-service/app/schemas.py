@@ -5,7 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Mode = Literal["auto", "guided", "expert"]
 OpClass = Literal["L0", "L1", "L2", "L3"]
-Task = Literal["classification", "regression"]
+from .contracts import contracts
+
+Task = Literal[tuple(contracts.TASKS)]  # type: ignore[valid-type]
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 NodeStatus = Literal["pending", "queued", "running", "succeeded", "failed", "cancelled", "skipped"]
 ExecutionStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -66,7 +68,7 @@ class WorkflowMetadata(BaseModel):
 
 class WorkflowSpec(BaseModel):
     schema_version: str = "1.0.0"
-    catalog_version: str = "1.0.0"
+    catalog_version: str = contracts.CATALOG_VERSION
     nodes: List[WorkflowNode]
     edges: List[WorkflowEdge]
     metadata: WorkflowMetadata
@@ -146,7 +148,7 @@ class ValidationReport(BaseModel):
     content_hash: str
     status: Literal["ok", "warning", "error"]
     layers: List[ValidationLayer]
-    catalog_version: str = "1.0.0"
+    catalog_version: str = contracts.CATALOG_VERSION
     created_at: Optional[str] = None
 
 class BudgetSpec(BaseModel):
@@ -255,7 +257,7 @@ def compute_canonical_hash(spec: Dict[str, Any]) -> str:
     
     canonical_obj = {
         "schema_version": spec.get("schema_version", "1.0.0"),
-        "catalog_version": spec.get("catalog_version", "1.0.0"),
+        "catalog_version": spec.get("catalog_version", contracts.CATALOG_VERSION),
         "nodes": sorted(cleaned_nodes, key=lambda x: x.get("id", "")),
         "edges": sorted(spec.get("edges", []), key=lambda x: x.get("id", "")),
         "metadata": spec.get("metadata", {})

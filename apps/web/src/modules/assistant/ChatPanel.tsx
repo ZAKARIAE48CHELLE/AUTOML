@@ -19,13 +19,13 @@ export function ChatPanel({ compact }: { compact?: boolean }) {
   const ds = useQuery({ queryKey: ['datasets', projectId], queryFn: () => dataApi.datasets(projectId!) })
   const dsv = ds.data?.find((d) => d.status === 'ready')?.latest_version_id
   const send = useMutation({ mutationFn: (m: string) => assistantApi.send(projectId!, m, dsv ? [dsv] : []), onSuccess: () => { setText(''); qc.invalidateQueries({ queryKey: ['chat', projectId] }); qc.invalidateQueries({ queryKey: ['audit'] }) } })
-  const propose = useMutation({ mutationFn: ({ a }: { a: ProposedAction; id: string }) => assistantApi.propose(a.ref, dsv!), onSuccess: (p, v) => { setProposals((s) => ({ ...s, [v.id]: p })); qc.invalidateQueries({ queryKey: ['audit'] }); qc.invalidateQueries({ queryKey: ['workflows'] }) } })
+  const propose = useMutation({ meta: { toast: 'Plan proposé par l’IA' }, mutationFn: ({ a }: { a: ProposedAction; id: string }) => assistantApi.propose(a.ref, dsv!), onSuccess: (p, v) => { setProposals((s) => ({ ...s, [v.id]: p })); qc.invalidateQueries({ queryKey: ['audit'] }); qc.invalidateQueries({ queryKey: ['workflows'] }) } })
   useEffect(() => { end.current?.scrollIntoView?.({ behavior: 'smooth' }) }, [msgs.data?.length, send.isPending, Object.keys(proposals).length])
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b px-4 py-2.5 text-sm font-semibold">Assistant <SimBadge /></div>
       <div className="flex-1 space-y-3 overflow-auto p-4" aria-live="polite">
-        {msgs.isLoading && <Spinner />}
+        {msgs.isLoading && <Spinner shape="chat" />}
         {!msgs.isLoading && !msgs.data?.length && <div className="space-y-2 text-sm text-slate-500"><p>Je peux décrire vos données, structurer un objectif et préparer un plan de workflow à relire. Je n'exécute jamais rien moi-même.</p>{SUGGESTIONS.map((s) => <button key={s} className="block w-full rounded-md border border-slate-200 p-2 text-left text-xs hover:bg-slate-50" onClick={() => send.mutate(s)}>{s}</button>)}</div>}
         {msgs.data?.map((m) => (
           <motion.div key={m.id} initial={{ opacity: 0, y: 14, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 26 }} className={m.role === 'user' ? 'flex justify-end' : ''}>

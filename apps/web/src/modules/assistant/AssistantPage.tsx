@@ -15,8 +15,8 @@ export function AssistantPage() {
   const ds = useQuery({ queryKey: ['datasets', projectId], queryFn: () => dataApi.datasets(projectId!) })
   const [dsId, setDsId] = useState(''); const [goalText, setGoalText] = useState(''); const [proposal, setProposal] = useState<PlanProposal>()
   const dsv = ds.data?.find((d) => d.id === (dsId || ds.data?.find((x) => x.status === 'ready')?.id))?.latest_version_id
-  const parse = useMutation({ mutationFn: () => assistantApi.parseGoal(goalText, dsv!), onSuccess: () => setProposal(undefined) })
-  const propose = useMutation({ mutationFn: () => assistantApi.propose(parse.data!.goal.id, dsv!), onSuccess: (p) => { setProposal(p); qc.invalidateQueries({ queryKey: ['workflows'] }); qc.invalidateQueries({ queryKey: ['audit'] }) } })
+  const parse = useMutation({ meta: { toast: 'Objectif analysé' }, mutationFn: () => assistantApi.parseGoal(goalText, dsv!), onSuccess: () => setProposal(undefined) })
+  const propose = useMutation({ meta: { toast: { title: 'Plan proposé par l’IA', detail: 'Un nouveau workflow est prêt à être revu.', celebrate: 'small' } }, mutationFn: () => assistantApi.propose(parse.data!.goal.id, dsv!), onSuccess: (p) => { setProposal(p); qc.invalidateQueries({ queryKey: ['workflows'] }); qc.invalidateQueries({ queryKey: ['audit'] }) } })
   const g = parse.data?.goal
   return (
     <>

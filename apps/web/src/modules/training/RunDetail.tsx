@@ -12,7 +12,7 @@ export function RunDetail() {
   const { runId } = useParams()
   const q = useQuery({ queryKey: ['run', runId], queryFn: () => trainingApi.run(runId!) })
   const ex = useMutation({ mutationFn: () => assistantApi.explain(`run:${runId}`) })
-  if (q.isLoading) return <Spinner />
+  if (q.isLoading) return <Spinner shape="detail" />
   if (q.error) return <ErrorBanner error={q.error} />
   const r = q.data!
   return (

@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -74,73 +75,20 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"code": "INTERNAL", "message": "Erreur interne du service.",
                                                   "details": None, "request_id": _rid()})
 
-MINIMIZE_METRICS = {"log_loss", "loss", "rmse", "mse", "mae"}
+from .contracts import contracts
 
-MODELS_CATALOG = [
-    {
-        "id": "model_rf",
-        "version": "1.0",
-        "family": "ensemble",
-        "label": "Random Forest",
-        "task": ["classification", "regression"],
-        "modality": "tabular",
-        "params_schema": {
-            "type": "object",
-            "properties": {
-                "n_estimators": {"type": "integer", "default": 100, "minimum": 10, "maximum": 1000},
-                "max_depth": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50}
-            }
-        },
-        "dependencies": ["scikit-learn>=1.5.0"],
-        "determinism": "exact",
-        "deep_learning": False
-    },
-    {
-        "id": "model_xgb",
-        "version": "1.0",
-        "family": "gradient_boosting",
-        "label": "XGBoost Classifier",
-        "task": ["classification", "regression"],
-        "modality": "tabular",
-        "params_schema": {
-            "type": "object",
-            "properties": {
-                "n_estimators": {"type": "integer", "default": 150, "minimum": 10, "maximum": 2000},
-                "learning_rate": {"type": "number", "default": 0.05, "minimum": 0.001, "maximum": 1.0},
-                "max_depth": {"type": "integer", "default": 6, "minimum": 1, "maximum": 20}
-            }
-        },
-        "dependencies": ["xgboost>=2.0.0"],
-        "determinism": "tolerance",
-        "deep_learning": False
-    },
-    {
-        "id": "model_mlp",
-        "version": "1.0",
-        "family": "deep_learning",
-        "label": "Tabular MLP Neural Net",
-        "task": ["classification", "regression"],
-        "modality": "tabular",
-        "params_schema": {
-            "type": "object",
-            "properties": {
-                "hidden_layers": {"type": "string", "default": "128,64"},
-                "learning_rate": {"type": "number", "default": 0.001},
-                "epochs": {"type": "integer", "default": 30}
-            }
-        },
-        "dependencies": ["torch>=2.4.0"],
-        "determinism": "tolerance",
-        "deep_learning": True
-    }
-]
+# Catalogue partagé (packages/contracts/models.json) : mêmes identifiants que le client web et E4.
+MINIMIZE_METRICS = contracts.MINIMIZE_METRICS
+MODELS_CATALOG = contracts.MODELS
+# Porte G-DL : les modèles de deep learning restent fermés tant qu'elle n'est pas validée.
+GATE_DL_OPEN = os.getenv("GATE_DL_OPEN", "false").lower() in ("1", "true", "yes")
 
 RUNS_DB = {
     "run_rf_01": {
         "id": "run_rf_01",
         "project_id": "p_churn",
         "name": "Random Forest Baseline",
-        "model_id": "model_rf",
+        "model_id": "random_forest",
         "config_hash": "sha256:cfg_rf_001",
         "protocol_hash": "sha256:proto_churn_v1",
         "split_id": "split_01",
@@ -164,7 +112,7 @@ RUNS_DB = {
         "id": "run_xgb_01",
         "project_id": "p_churn",
         "name": "XGBoost Fine-Tuned",
-        "model_id": "model_xgb",
+        "model_id": "gradient_boosting",
         "config_hash": "sha256:cfg_xgb_001",
         "protocol_hash": "sha256:proto_churn_v1",
         "split_id": "split_01",
@@ -214,7 +162,7 @@ JOBS_DB = {
         "progress": 1.0,
         "metrics": {"accuracy": 0.879},
         "run_id": "run_xgb_01",
-        "model_id": "model_xgb",
+        "model_id": "gradient_boosting",
         "project_id": "p_churn",
         "created_at": "2026-11-05T10:44:00Z"
     }
@@ -250,7 +198,7 @@ def health_ready():
 # Models Catalog & Hardware Resources
 # -------------------------------------------------------------
 @app.get("/models/catalog", response_model=List[ModelSpec], tags=["Catalog"])
-def get_catalog(task: Optional[str] = None, modality: Optional[str] = "tabular"):
+def get_catalog(task: Optional[str] = None, modality: Optional[str] = None):
     res = []
     for m in MODELS_CATALOG:
         if task and task not in m["task"]:
@@ -272,13 +220,31 @@ def get_resources():
 
 @app.post("/training/validate", response_model=ValidationReport, tags=["Training"])
 def validate_training(req: TrainingValidateRequest):
+    """Couche « training » : modèle connu, compatible avec le type de pipeline, métrique adaptée, porte G-DL, budget."""
+    issues: List[ValidationIssue] = []
+    m = contracts.MODEL_BY_ID.get(req.model_id)
+    if m is None:
+        issues.append(ValidationIssue(code="T_MODEL", severity="error", path="model_id", message=f"Modèle inconnu : {req.model_id}."))
+    else:
+        if m.get("deep_learning") and not GATE_DL_OPEN:
+            issues.append(ValidationIssue(code="T_GATE_DL", severity="error", path="model_id",
+                                          message="Les modèles de deep learning sont fermés tant que la porte G-DL n'est pas validée."))
+        if req.task and req.task not in m["task"]:
+            issues.append(ValidationIssue(code="T_TASK", severity="error", path="model_id", message=f"{m['label']} ne gère pas le type « {req.task} »."))
+    if req.task and req.primary_metric not in contracts.pipeline_type(req.task)["metrics"]:
+        allowed = ", ".join(contracts.pipeline_type(req.task)["metrics"])
+        issues.append(ValidationIssue(code="T_METRIC", severity="error", path="primary_metric",
+                                      message=f"La métrique « {req.primary_metric} » ne convient pas au type {req.task}.", hint=f"Choisissez parmi : {allowed}."))
+    caps = {"trials": 100, "max_minutes": 60}
+    for k, cap in caps.items():
+        if req.budget and req.budget.get(k, 0) > cap:
+            issues.append(ValidationIssue(code="T_BUDGET", severity="error", path=f"budget.{k}", message=f"{k} > plafond ({cap})."))
+    status_ = "error" if any(i.severity == "error" for i in issues) else "ok"
     return ValidationReport(
         subject={"kind": "TrainingConfig", "id": req.model_id},
         content_hash=f"sha256:{uuid.uuid4().hex[:12]}",
-        status="ok",
-        layers=[
-            ValidationLayer(layer="training", status="ok", issues=[])
-        ]
+        status=status_,
+        layers=[ValidationLayer(layer="training", status=status_, issues=issues)]
     )
 
 # -------------------------------------------------------------

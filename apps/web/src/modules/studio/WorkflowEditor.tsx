@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ThemeToggle } from '@/lib/theme'
+import { NodePalette } from './palette/NodePalette'
+import { addBlock, changeTask, type Block } from './palette/blocks'
+import { toast, celebrate } from '@/components/Feedback'
+import { CodeImportDialog } from './codeImport/CodeImportDialog'
+import { PIPELINE_TYPES, buildTemplateSpec, pipelineType, type Task } from '@contracts/src'
+import { validationToast } from '@/components/Feedback'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, GitCompare, Maximize2, Minimize2, PanelLeft, PanelRight, Plus, Save, ShieldCheck, Trash2, Undo2, X } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, GitCompare, Maximize2, Minimize2, PanelLeft, PanelRight, Plus, Save, ShieldCheck, Trash2, Undo2, X, Code2 } from 'lucide-react'
 import type { JsonSchema, WorkflowSpec, ValidationReport, NodeType, DatasetColumn } from '@contracts/src'
 import { NODE_TYPES, NODE_TYPE_BY_ID, validateStructure, contentHash } from '@contracts/src'
 import { studioApi } from '@/api/studio'
@@ -65,7 +72,7 @@ function PanelTab({ side, label, onClick }: { side: 'left' | 'right'; label: str
 }
 
 export function WorkflowEditor() {
-  const { workflowId } = useParams(); const [sp, setSp] = useSearchParams(); const qc = useQueryClient(); const { projectId } = useSession()
+  const { workflowId } = useParams(); const [sp, setSp] = useSearchParams(); const qc = useQueryClient(); const { projectId, mode } = useSession()
   const wq = useQuery({ queryKey: ['workflow', workflowId], queryFn: () => studioApi.workflow(workflowId!) })
   const versionId = sp.get('v') ?? wq.data?.workflow.latest_version_id
   const vq = useQuery({ queryKey: ['version', workflowId, versionId], queryFn: () => studioApi.version(workflowId!, versionId!), enabled: !!versionId })
@@ -77,6 +84,7 @@ export function WorkflowEditor() {
   const contentChanged = !!spec && !!orig && contentHash(spec) !== contentHash(orig)
 
   // Panneaux latéraux + plein écran navigateur
+  const [codeOpen, setCodeOpen] = useState(false)
   const [panels, setPanels] = useState(readPanels)
   const setPanel = useCallback((side: 'left' | 'right', open: boolean) => setPanels((p) => { const n = { ...p, [side]: open }; writePanels(n); return n }), [])
   // Doit rester stable : WorkflowCanvas resynchronise ses nœuds quand onSelect change.
@@ -84,6 +92,15 @@ export function WorkflowEditor() {
   const [fullscreen, setFullscreen] = useState(() => typeof document !== 'undefined' && !!document.fullscreenElement)
   useEffect(() => { const h = () => setFullscreen(!!document.fullscreenElement); document.addEventListener('fullscreenchange', h); return () => document.removeEventListener('fullscreenchange', h) }, [])
   useEffect(() => () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}) }, []) // quitter le plein écran en quittant l'éditeur
+  // Ctrl+B (⌘B sur Mac) : masque les deux panneaux si l'un est ouvert, sinon les affiche tous les deux.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'b') return
+      e.preventDefault()
+      setPanels((p) => { const open = !(p.left || p.right); const n = { left: open, right: open }; writePanels(n); return n })
+    }
+    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
+  }, [])
   const toggleFullscreen = () => { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); else void document.documentElement.requestFullscreen?.().catch(() => {}) }
 
   const ds = useQuery({ queryKey: ['datasets', projectId], queryFn: () => dataApi.datasets(projectId!) })
@@ -97,21 +114,53 @@ export function WorkflowEditor() {
   const local = useMemo(() => (spec ? validateStructure(spec, { caps: caps.data?.budget_caps }) : []), [spec, caps.data])
   const severity = useMemo(() => sevMap([...local, ...(report && !dirty ? report.layers.flatMap((l) => l.issues) : [])]), [local, report, dirty])
 
-  const save = useMutation({ mutationFn: () => studioApi.newVersion(workflowId!, versionId!, spec!, label || undefined), onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['workflow', workflowId] }); qc.invalidateQueries({ queryKey: ['workflows'] }); setLabel(''); if (!r.unchanged) setSp({ v: r.version_id }); } })
-  const validate = useMutation({ mutationFn: () => studioApi.validate(workflowId!, versionId!), onSuccess: (r) => { setReport(r); qc.invalidateQueries({ queryKey: ['workflow', workflowId] }); qc.invalidateQueries({ queryKey: ['version', workflowId, versionId] }) } })
+  const save = useMutation({ meta: { toast: (r: { unchanged?: boolean; version_id: string }) => r.unchanged ? { title: 'Aucun changement à enregistrer', tone: 'info' } : { title: 'Version enregistrée', detail: r.version_id } }, mutationFn: () => studioApi.newVersion(workflowId!, versionId!, spec!, label || undefined), onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['workflow', workflowId] }); qc.invalidateQueries({ queryKey: ['workflows'] }); setLabel(''); if (!r.unchanged) setSp({ v: r.version_id }); } })
+  const validate = useMutation({ meta: { toast: validationToast }, mutationFn: () => studioApi.validate(workflowId!, versionId!), onSuccess: (r) => { setReport(r); qc.invalidateQueries({ queryKey: ['workflow', workflowId] }); qc.invalidateQueries({ queryKey: ['version', workflowId, versionId] }) } })
 
-  if (wq.isLoading || vq.isLoading || !spec) return <Spinner />
+  // L'erreur d'abord : sinon un workflow introuvable reste bloqué sur « Chargement… » (spec jamais définie).
   if (wq.error || vq.error) return <ErrorBanner error={wq.error ?? vq.error} />
+  if (wq.isLoading || vq.isLoading || !spec) return <Spinner shape="canvas" />
   const v = vq.data!; const node = spec.nodes.find((n) => n.id === sel); const nt: NodeType | undefined = node && NODE_TYPE_BY_ID[node.type]
-  const add = (t: NodeType) => {
-    if (t.type === 'data.dataset' && spec.nodes.some((n) => n.type === 'data.dataset')) return
-    const n = Math.max(0, ...spec.nodes.map((x) => Number(x.id.replace(/\D/g, '')) || 0)) + 1; const maxX = Math.max(0, ...spec.nodes.map((x) => x.ui?.x ?? 0))
-    const params = defaultsFor(t.params_schema); if (t.type === 'train.model' || t.type === 'train.tune') { params.model_id = models.data?.find((m) => !m.disabled)?.id; params.primary_metric = spec.metadata.objective?.primary_metric ?? params.primary_metric }
-    setSpec({ ...spec, nodes: [...spec.nodes, { id: `n${n}`, type: t.type, type_version: t.version, params, ui: { x: maxX + 40, y: 200 } }] }); select(`n${n}`)
+  /** Ajout d'un bloc (palette, liste ou glisser-déposer) ; câblage automatique hors mode Expert. */
+  const addB = (block: Block, pos?: { x: number; y: number }) => {
+    const r = addBlock(spec, block, { columns, models: models.data, pos, wire: mode !== 'expert' })
+    if (r.message) toast(r.message, { tone: 'info' })
+    if (r.spec !== spec) { setSpec(r.spec); if (r.nodeId) select(r.nodeId) }
+  }
+  const add = (t: NodeType) => addB({ kind: 'node', type: t.type })
+  const setTask = (task: Task) => {
+    const r = changeTask(spec, task, columns, models.data)
+    setSpec(r.spec)
+    toast(`Type de pipeline : ${pipelineType(task).label}`, { tone: 'info', detail: r.changes.length ? r.changes.join(' · ') : 'Métrique, rôles de colonnes et blocs adaptés.' })
+  }
+  const dsvNode = spec.nodes.find((n) => n.type === 'data.dataset')?.params.dataset_version_id as string | undefined
+  const applyTemplate = () => {
+    if (!dsvNode || !columns.length) { toast('Ajoutez d\'abord un dataset au pipeline.', { tone: 'info' }); return }
+    if (spec.nodes.length > 1 && !window.confirm('Remplacer le pipeline actuel par le pipeline type ? (Annuler restaure la version enregistrée.)')) return
+    const t = buildTemplateSpec(spec.metadata.task, dsvNode, columns, { target: spec.metadata.target, metric: spec.metadata.objective?.primary_metric })
+    setSpec({ ...t, metadata: { ...t.metadata, origin: spec.metadata.origin, goal_id: spec.metadata.goal_id } }); setSel(null)
+  }
+  const pt = pipelineType(spec.metadata.task)
+  /** Formulaire du nœud adapté au type de pipeline : rôles de colonnes, stratégies et métriques autorisées. */
+  const typedSchema = (nodeType: string, schema: JsonSchema): JsonSchema => {
+    const props = { ...(schema.properties ?? {}) }
+    if (nodeType === 'data.split') {
+      props.strategy = { ...props.strategy, enum: pt.split_strategies }
+      for (const r of pt.roles) if (props[r.role]) props[r.role] = { ...props[r.role], title: r.label }
+      const required = [...(schema.required ?? []), ...pt.roles.filter((r) => r.required).map((r) => r.role)]
+      return { ...schema, properties: props, required }
+    }
+    if ((nodeType === 'train.model' || nodeType === 'train.tune') && props.primary_metric) props.primary_metric = { ...props.primary_metric, enum: pt.metrics }
+    return { ...schema, properties: props }
+  }
+  const roleHide = (p: Record<string, any>) => {
+    const roles = new Set<string>(pt.roles.map((r) => r.role))
+    return ['target', 'text_column', 'image_column', 'user_column', 'item_column', 'time_column', 'group_column'].filter((k) =>
+      !roles.has(k) && !(k === 'group_column' && p.strategy === 'group') && !(k === 'time_column' && p.strategy === 'time'))
   }
   const opts = { dataset_versions: (ds.data ?? []).filter((d) => d.latest_version_id).map((d) => ({ value: d.latest_version_id!, label: `${d.name} (${d.latest_version_id})` })), columns: columns.map((c) => ({ value: c.name, label: `${c.name} (${c.dtype})` })), models: (models.data ?? []).map((m) => ({ value: m.id, label: m.label + (m.disabled ? ' — fermé (G-DL)' : '') })) }
   const widgets: Widgets = {
-    steps: ({ value, onChange }) => <StepsEditor value={value} onChange={onChange} columns={columns} />,
+    steps: ({ value, onChange }) => <StepsEditor value={value} onChange={onChange} columns={columns} allowed={pt.step_types} />,
     model_params: ({ value, onChange }) => { const m = models.data?.find((x) => x.id === node?.params.model_id); return m ? <div className="rounded-md border border-slate-200 p-3"><SchemaForm schema={m.params_schema} value={value ?? {}} onChange={onChange} /></div> : <p className="text-xs text-slate-500">Choisissez d'abord un modèle.</p> },
     search_space: ({ value, onChange }) => { const m = models.data?.find((x) => x.id === node?.params.model_id); const props = Object.entries(m?.params_schema.properties ?? {}); return props.length ? <div className="space-y-2">{props.map(([k, s]) => { const r = (value?.[k] as number[] | undefined) ?? []; return <div key={k} className="flex items-center gap-2 text-xs"><span className="w-28 truncate font-mono">{k}</span><input className="input" type="number" aria-label={`${k} min`} placeholder={String(s.minimum)} value={r[0] ?? ''} onChange={(e) => onChange({ ...value, [k]: [Number(e.target.value), r[1] ?? s.maximum] })} /><span>→</span><input className="input" type="number" aria-label={`${k} max`} placeholder={String(s.maximum)} value={r[1] ?? ''} onChange={(e) => onChange({ ...value, [k]: [r[0] ?? s.minimum, Number(e.target.value)] })} /></div> })}</div> : <p className="text-xs text-slate-500">Choisissez d'abord un modèle.</p> },
   }
@@ -135,25 +184,30 @@ export function WorkflowEditor() {
           <Button size="sm" onClick={() => save.mutate()} disabled={!dirty} loading={save.isPending}><Save className="h-3.5 w-3.5" />Enregistrer</Button>
           <Button size="sm" variant="ghost" disabled={!dirty} onClick={() => { setSpec(structuredClone(orig!)); setSel(null) }}><Undo2 className="h-3.5 w-3.5" />Annuler</Button>
           <Button size="sm" variant="secondary" disabled={dirty} loading={validate.isPending} onClick={() => validate.mutate()} title={dirty ? 'Enregistrez d\'abord : une version est immuable' : 'Validation serveur'}><ShieldCheck className="h-3.5 w-3.5" />Valider</Button>
+          <Button size="sm" variant="secondary" onClick={() => setCodeOpen(true)} title="Construire le pipeline à partir d'un script Python"><Code2 className="h-3.5 w-3.5" />Code → Pipeline</Button>
           {v.parent_version_id && <Button size="sm" variant="secondary" onClick={() => setDiffOpen(true)}><GitCompare className="h-3.5 w-3.5" />Différences</Button>}
           <Link to={dirty ? '#' : `/studio/workflows/${workflowId}/review/${v.id}`} onClick={(e) => dirty && e.preventDefault()}><Button size="sm" variant="secondary" disabled={dirty}><ClipboardCheck className="h-3.5 w-3.5" />Revue & exécution</Button></Link>
           <span className="mx-1 h-6 w-px bg-slate-200" aria-hidden="true" />
-          <button onClick={() => setPanel('left', !panels.left)} aria-pressed={panels.left} title={panels.left ? 'Masquer les nœuds' : 'Afficher les nœuds'} className={clsx('rounded-lg p-1.5 transition', panels.left ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100')}><PanelLeft className="h-4 w-4" /></button>
-          <button onClick={() => setPanel('right', !panels.right)} aria-pressed={panels.right} title={panels.right ? 'Masquer les propriétés' : 'Afficher les propriétés'} className={clsx('rounded-lg p-1.5 transition', panels.right ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100')}><PanelRight className="h-4 w-4" /></button>
+          <button onClick={() => setPanel('left', !panels.left)} aria-pressed={panels.left} title={(panels.left ? 'Masquer les nœuds' : 'Afficher les nœuds') + ' (Ctrl+B : les deux panneaux)'} className={clsx('rounded-lg p-1.5 transition', panels.left ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100')}><PanelLeft className="h-4 w-4" /></button>
+          <button onClick={() => setPanel('right', !panels.right)} aria-pressed={panels.right} title={(panels.right ? 'Masquer les propriétés' : 'Afficher les propriétés') + ' (Ctrl+B : les deux panneaux)'} className={clsx('rounded-lg p-1.5 transition', panels.right ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100')}><PanelRight className="h-4 w-4" /></button>
+          <ThemeToggle className="!h-7 !w-7 !border-transparent !bg-transparent" />
           <button onClick={toggleFullscreen} title={fullscreen ? 'Quitter le plein écran' : 'Plein écran (masque le navigateur)'} className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100">{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
         </div>
       </header>
 
       {/* Panneau gauche | canevas plein écran | panneau droit */}
       <div className="flex min-h-0 flex-1">
-        <SidePanel side="left" title="Nœuds" open={panels.left} onClose={() => setPanel('left', false)} width={232}>
-          <ul className="space-y-1">{NODE_TYPES.map((t) => { const off = t.type === 'data.dataset' && spec.nodes.some((n) => n.type === 'data.dataset'); return <li key={t.type}><button disabled={off} onClick={() => add(t)} title={`${t.type} — ${t.owner}${off ? ' (un seul dataset par workflow)' : ''}`} className="flex w-full items-center gap-1.5 rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:opacity-40"><Plus className="h-3 w-3" />{t.label}<span className="ml-auto text-[10px] text-slate-400">{t.operation_class}</span></button></li> })}</ul>
-          <div className="mt-3 border-t pt-2"><label className="label" htmlFor="task">Tâche</label><select id="task" className="input" value={spec.metadata.task} onChange={(e) => setSpec({ ...spec, metadata: { ...spec.metadata, task: e.target.value as 'classification' | 'regression' } })}><option value="classification">classification</option><option value="regression">régression</option></select></div>
-          <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-slate-400">Glissez d'un port de sortie (●) vers un port d'entrée de même couleur. Seules les connexions de types compatibles sont acceptées. Suppr. pour retirer la sélection.</p>
+        <SidePanel side="left" title={mode === 'auto' ? 'Nœuds' : mode === 'guided' ? 'Blocs — mode Guidé' : 'Blocs — mode Expert'} open={panels.left} onClose={() => setPanel('left', false)} width={mode === 'auto' ? 232 : 300}>
+          {mode === 'auto' ? <>
+            <ul className="space-y-1">{NODE_TYPES.map((t) => { const off = t.type === 'data.dataset' && spec.nodes.some((n) => n.type === 'data.dataset'); return <li key={t.type}><button disabled={off} onClick={() => add(t)} title={`${t.type} — ${t.owner}${off ? ' (un seul dataset par workflow)' : ''}`} className="flex w-full items-center gap-1.5 rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:opacity-40"><Plus className="h-3 w-3" />{t.label}<span className="ml-auto text-[10px] text-slate-400">{t.operation_class}</span></button></li> })}</ul>
+            <div className="mt-3 border-t pt-2"><label className="label" htmlFor="task">Type de pipeline</label><select id="task" className="input" value={spec.metadata.task} onChange={(e) => setTask(e.target.value as Task)}>{PIPELINE_TYPES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
+            <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-slate-400">Glissez d'un port de sortie (●) vers un port d'entrée de même couleur. Seules les connexions de types compatibles sont acceptées. Suppr. pour retirer la sélection.</p>
+          </> : <NodePalette spec={spec} mode={mode} columns={columns} models={models.data ?? []} onAdd={addB} onTask={setTask}
+            onOptions={(o) => setSpec({ ...spec, metadata: { ...spec.metadata, task_options: o } })} onTemplate={applyTemplate} />}
         </SidePanel>
 
         <div className="relative min-w-0 flex-1">
-          <WorkflowCanvas spec={spec} onChange={setSpec} selected={sel} onSelect={select} severity={severity} height="100%" bare />
+          <WorkflowCanvas spec={spec} onChange={setSpec} selected={sel} onSelect={select} severity={severity} height="100%" bare onDropBlock={(raw, pos) => { try { addB(JSON.parse(raw) as Block, pos) } catch { /* contenu étranger */ } }} />
 
           {(v.origin === 'ai' || save.error || validate.error || (dirty && !contentChanged)) && (
             <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-4">
@@ -173,7 +227,7 @@ export function WorkflowEditor() {
           title={node ? `${nt?.label ?? node.type} · ${node.id}` : 'Propriétés'}
           actions={node && <button aria-label="Supprimer le nœud" title="Supprimer le nœud" onClick={deleteNode} className="rounded p-1 hover:bg-red-50"><Trash2 className="h-4 w-4 text-red-500" /></button>}>
           {node && nt ? <div className="space-y-3"><p className="text-[11px] text-slate-400">{nt.type} v{nt.version} · {nt.owner} · classe {nt.operation_class}</p>
-            <SchemaForm schema={nt.params_schema} value={node.params} onChange={(p) => setSpec({ ...spec, nodes: spec.nodes.map((n) => (n.id === node.id ? { ...n, params: p } : n)) })} options={opts} widgets={widgets} hide={[...(node.params.strategy === 'group' ? [] : ['group_column']), ...(node.params.strategy === 'time' ? [] : ['time_column']), ...(node.type === 'data.split' && node.params.cv_folds !== 1 ? ['val_ratio'] : [])]} />
+            <SchemaForm schema={typedSchema(node.type, nt.params_schema)} value={node.params} onChange={(p) => setSpec({ ...spec, nodes: spec.nodes.map((n) => (n.id === node.id ? { ...n, params: p } : n)) })} options={opts} widgets={widgets} hide={[...(node.type === 'data.split' ? roleHide(node.params) : []), ...(node.type === 'data.split' && node.params.cv_folds !== 1 ? ['val_ratio'] : [])]} />
             {nodeIssues.length > 0 && <ul className="space-y-1">{nodeIssues.map((i, k) => <li key={k} className={`rounded border px-2 py-1 text-xs ${i.severity === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><b>{i.code}</b> {i.message}</li>)}</ul>}</div>
             : <p className="text-sm text-slate-500">Sélectionnez un nœud pour éditer ses paramètres.</p>}
           <section className="mt-4 border-t pt-3">
@@ -183,6 +237,8 @@ export function WorkflowEditor() {
         </SidePanel>
       </div>
 
+      <CodeImportDialog open={codeOpen} onClose={() => setCodeOpen(false)} projectId={projectId ?? undefined} current={spec} models={models.data}
+        onApply={(next, how) => { setSpec({ ...next, metadata: { ...next.metadata, origin: spec.metadata.origin, goal_id: spec.metadata.goal_id } }); setSel(null); celebrate('small'); toast(how === 'replace' ? 'Pipeline construit depuis le code' : 'Étapes et modèles du code ajoutés', { tone: 'celebrate', detail: `${pipelineType(next.metadata.task).label} · ${next.nodes.length} nœuds — vérifiez puis enregistrez.` }) }} />
       <Modal open={diffOpen} onClose={() => setDiffOpen(false)} title="Différences avec la version parente">
         {diffQ.isLoading ? <Spinner /> : diffQ.data && <div className="space-y-2 text-sm">
           <p className="text-xs text-slate-500">contre {shortId(diffQ.data.against)}</p>

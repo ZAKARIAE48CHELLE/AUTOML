@@ -1,5 +1,5 @@
 import type { ValidationIssue, ValidationLayer, ValidationReport, WorkflowSpec, NodeType, LayerName } from './types'
-import { NODE_TYPE_BY_ID, CATALOG_VERSION, MAX_NODES } from './catalog'
+import { NODE_TYPE_BY_ID, CATALOG_VERSION, MAX_NODES, isCompatibleCatalog, PIPELINE_TYPE_BY_ID, PREPROCESS_STEP_BY_TYPE, METRIC_BY_ID } from './catalog'
 import { validateSchema } from './jsonschema'
 import { contentHash } from './hash'
 
@@ -18,7 +18,7 @@ export function validateStructure(spec: WorkflowSpec, ctx: StructureContext = {}
   for (const n of spec.nodes) {
     if (!NODE_TYPE_BY_ID[n.type]) issues.push(err('V9', `Type de nœud inconnu « ${n.type} » dans le catalogue ${spec.catalog_version}.`, { node_id: n.id }))
   }
-  if (spec.catalog_version !== CATALOG_VERSION) issues.push(err('V9', `Version de catalogue ${spec.catalog_version} introuvable (courante : ${CATALOG_VERSION}).`))
+  if (!isCompatibleCatalog(spec.catalog_version)) issues.push(err('V9', `Version de catalogue ${spec.catalog_version} incompatible (courante : ${CATALOG_VERSION}).`))
   if (issues.length) return issues
   const T = (id: string): NodeType => NODE_TYPE_BY_ID[nodes.get(id)!.type]
   // V10 — limites
@@ -69,6 +69,7 @@ export function validateStructure(spec: WorkflowSpec, ctx: StructureContext = {}
   for (const n of spec.nodes) {
     for (const i of validateSchema(n.params ?? {}, T(n.id).params_schema)) issues.push(err('V4', `${i.path || 'params'} : ${i.message}`, { node_id: n.id, path: i.path }))
   }
+  issues.push(...pipelineTypeIssues(spec))
   if (issues.some((i) => i.code === 'V3')) return issues
   // ancêtres / lignée
   const parents: Record<string, Set<string>> = {}
@@ -105,6 +106,36 @@ export function validateStructure(spec: WorkflowSpec, ctx: StructureContext = {}
     if (n.type === 'eval.final_test' && ![...ancestors(n.id)].some((a) => nodes.get(a)!.type === 'eval.compare')) issues.push(err('V7', 'eval.final_test doit être en aval d\'un eval.compare.', { node_id: n.id, hint: 'Sélectionnez d\'abord sur la validation, testez ensuite.' }))
     if (n.type === 'model.register' && ![...ancestors(n.id)].some((a) => nodes.get(a)!.type === 'eval.final_test')) issues.push(err('V8', 'model.register doit être en aval d\'un eval.final_test.', { node_id: n.id }))
   }
+  return issues
+}
+
+/**
+ * V11 — cohérence avec le type de pipeline (metadata.task) : rôles de colonnes requis, stratégie de split,
+ * étapes de prétraitement et métrique principale autorisées. Règles tirées du catalogue `pipeline_types`.
+ */
+export function pipelineTypeIssues(spec: WorkflowSpec): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  const pt = PIPELINE_TYPE_BY_ID[spec.metadata?.task]
+  if (!pt) return [err('V11', `Type de pipeline inconnu « ${spec.metadata?.task} ».`, { hint: 'Choisissez un type de pipeline du catalogue.' })]
+  for (const n of spec.nodes) {
+    const p = n.params ?? {}
+    if (n.type === 'data.split') {
+      if (p.strategy && !pt.split_strategies.includes(p.strategy)) issues.push(err('V11', `Stratégie de split « ${p.strategy} » non adaptée à : ${pt.label}.`, { node_id: n.id, path: 'strategy', hint: `Stratégies possibles : ${pt.split_strategies.join(', ')}.` }))
+      for (const r of pt.roles.filter((x) => x.required)) {
+        if (!p[r.role]) issues.push(err('V11', `${r.label} : obligatoire pour ${pt.label}.`, { node_id: n.id, path: r.role, hint: 'Renseignez la colonne dans les paramètres du split.' }))
+      }
+    }
+    if (n.type === 'data.preprocess') {
+      ;(p.steps ?? []).forEach((st: { type: string }, i: number) => {
+        if (st?.type && PREPROCESS_STEP_BY_TYPE[st.type] && !pt.step_types.includes(st.type)) issues.push(err('V11', `Étape « ${PREPROCESS_STEP_BY_TYPE[st.type].label} » non adaptée à : ${pt.label}.`, { node_id: n.id, path: `steps.${i}.type` }))
+      })
+    }
+    if ((n.type === 'train.model' || n.type === 'train.tune') && p.primary_metric && !pt.metrics.includes(p.primary_metric)) {
+      issues.push(err('V11', `Métrique « ${METRIC_BY_ID[p.primary_metric]?.label ?? p.primary_metric} » non adaptée à : ${pt.label}.`, { node_id: n.id, path: 'primary_metric', hint: `Métriques possibles : ${pt.metrics.join(', ')}.` }))
+    }
+  }
+  const om = spec.metadata.objective?.primary_metric
+  if (om && !pt.metrics.includes(om)) issues.push({ code: 'V11', severity: 'warning', message: `L'objectif (${om}) ne fait pas partie des métriques de ${pt.label}.` })
   return issues
 }
 

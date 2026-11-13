@@ -23,7 +23,7 @@ export function ModeSettings() {
         <button key={m.id} onClick={() => m.id !== mode && setPending(m.id)} aria-pressed={m.id === mode} className={clsx('card p-4 text-left', m.id === mode ? 'border-brand-500 ring-1 ring-brand-500' : 'hover:border-slate-400')}>
           <div className="mb-1 flex items-center justify-between font-semibold">{m.label}{m.id === mode && <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-700">actif</span>}</div><p className="text-xs text-slate-600">{m.desc}</p></button>))}</div>
       <Card title="Matrice de politique (classe d'opération × mode)">
-        {pol.isLoading ? <Spinner /> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="th">Classe</th>{MODES.map((m) => <th key={m.id} className={clsx('th', m.id === mode && 'bg-brand-50 text-brand-700')}>{m.label}</th>)}</tr></thead>
+        {pol.isLoading ? <Spinner shape="table" /> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th className="th">Classe</th>{MODES.map((m) => <th key={m.id} className={clsx('th', m.id === mode && 'bg-brand-50 text-brand-700')}>{m.label}</th>)}</tr></thead>
           <tbody className="divide-y">{pol.data?.classes.map((c) => { const row = pol.data!.matrix.find((r) => r.cls === c.id)!; return (
             <tr key={c.id} className="align-top"><td className="td"><div className="font-semibold">{c.id} — {c.label}</div><div className="text-xs text-slate-500">{c.examples}</div></td>{MODES.map((m) => <td key={m.id} className={clsx('td text-xs', m.id === mode && 'bg-brand-50/50')}>{row[m.id]}</td>)}</tr>) })}</tbody></table></div>}
       </Card>

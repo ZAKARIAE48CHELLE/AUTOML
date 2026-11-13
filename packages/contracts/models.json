@@ -1,0 +1,927 @@
+{
+  "catalog_version": "1.1.0",
+  "models": [
+    {
+      "id": "logistic_regression",
+      "version": "1.0",
+      "family": "Linéaire",
+      "label": "Régression logistique",
+      "task": [
+        "classification",
+        "text_classification"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "C": {
+            "type": "number",
+            "title": "Régularisation C",
+            "default": 1.0,
+            "minimum": 0.0001,
+            "maximum": 100
+          },
+          "max_iter": {
+            "type": "integer",
+            "title": "Itérations max",
+            "default": 200,
+            "minimum": 50,
+            "maximum": 5000
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "random_forest",
+      "version": "1.0",
+      "family": "Arbres",
+      "label": "Forêt aléatoire",
+      "task": [
+        "classification",
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_estimators": {
+            "type": "integer",
+            "title": "Arbres",
+            "default": 300,
+            "minimum": 10,
+            "maximum": 2000
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Profondeur max",
+            "default": 12,
+            "minimum": 1,
+            "maximum": 64
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "gradient_boosting",
+      "version": "1.0",
+      "family": "Boosting",
+      "label": "Gradient boosting",
+      "task": [
+        "classification",
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_estimators": {
+            "type": "integer",
+            "title": "Itérations",
+            "default": 200,
+            "minimum": 10,
+            "maximum": 3000
+          },
+          "learning_rate": {
+            "type": "number",
+            "title": "Taux d'apprentissage",
+            "default": 0.1,
+            "minimum": 0.001,
+            "maximum": 1
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Profondeur max",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 16
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": false
+    },
+    {
+      "id": "knn",
+      "version": "1.0",
+      "family": "Voisinage",
+      "label": "k plus proches voisins",
+      "task": [
+        "classification",
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_neighbors": {
+            "type": "integer",
+            "title": "Voisins",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "linear_regression",
+      "version": "1.0",
+      "family": "Linéaire",
+      "label": "Régression linéaire",
+      "task": [
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "ridge",
+      "version": "1.0",
+      "family": "Linéaire",
+      "label": "Ridge",
+      "task": [
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "title": "Alpha",
+            "default": 1.0,
+            "minimum": 0.0001,
+            "maximum": 1000
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "mlp",
+      "version": "1.0",
+      "family": "Deep learning",
+      "label": "Perceptron multicouche (G-DL)",
+      "task": [
+        "classification",
+        "regression"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "hidden_layers": {
+            "type": "string",
+            "title": "Couches cachées",
+            "default": "128,64"
+          },
+          "epochs": {
+            "type": "integer",
+            "title": "Époques",
+            "default": 30,
+            "minimum": 1,
+            "maximum": 500
+          }
+        }
+      },
+      "dependencies": [
+        "torch==2.4.1"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": true
+    },
+    {
+      "id": "kmeans",
+      "version": "1.0",
+      "family": "Partitionnement",
+      "label": "K-means",
+      "task": [
+        "clustering"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_clusters": {
+            "type": "integer",
+            "title": "Nombre de groupes",
+            "default": 4,
+            "minimum": 2,
+            "maximum": 100
+          },
+          "n_init": {
+            "type": "integer",
+            "title": "Initialisations",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "gaussian_mixture",
+      "version": "1.0",
+      "family": "Probabiliste",
+      "label": "Mélange gaussien",
+      "task": [
+        "clustering"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_components": {
+            "type": "integer",
+            "title": "Composantes",
+            "default": 4,
+            "minimum": 2,
+            "maximum": 100
+          },
+          "covariance_type": {
+            "type": "string",
+            "title": "Covariance",
+            "default": "full",
+            "enum": [
+              "full",
+              "tied",
+              "diag",
+              "spherical"
+            ]
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "dbscan",
+      "version": "1.0",
+      "family": "Densité",
+      "label": "DBSCAN",
+      "task": [
+        "clustering"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "eps": {
+            "type": "number",
+            "title": "Rayon (eps)",
+            "default": 0.5,
+            "minimum": 0.01,
+            "maximum": 50
+          },
+          "min_samples": {
+            "type": "integer",
+            "title": "Points min",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 500
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "agglomerative",
+      "version": "1.0",
+      "family": "Hiérarchique",
+      "label": "Classification hiérarchique",
+      "task": [
+        "clustering"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_clusters": {
+            "type": "integer",
+            "title": "Nombre de groupes",
+            "default": 4,
+            "minimum": 2,
+            "maximum": 100
+          },
+          "linkage": {
+            "type": "string",
+            "title": "Liaison",
+            "default": "ward",
+            "enum": [
+              "ward",
+              "complete",
+              "average",
+              "single"
+            ]
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "isolation_forest",
+      "version": "1.0",
+      "family": "Arbres",
+      "label": "Isolation Forest",
+      "task": [
+        "anomaly_detection"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_estimators": {
+            "type": "integer",
+            "title": "Arbres",
+            "default": 200,
+            "minimum": 10,
+            "maximum": 2000
+          },
+          "max_samples": {
+            "type": "number",
+            "title": "Échantillon par arbre",
+            "default": 1.0,
+            "minimum": 0.05,
+            "maximum": 1
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "local_outlier_factor",
+      "version": "1.0",
+      "family": "Voisinage",
+      "label": "Local Outlier Factor",
+      "task": [
+        "anomaly_detection"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_neighbors": {
+            "type": "integer",
+            "title": "Voisins",
+            "default": 20,
+            "minimum": 2,
+            "maximum": 500
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "one_class_svm",
+      "version": "1.0",
+      "family": "Noyaux",
+      "label": "SVM à une classe",
+      "task": [
+        "anomaly_detection"
+      ],
+      "modality": "tabular",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "nu": {
+            "type": "number",
+            "title": "nu",
+            "default": 0.05,
+            "minimum": 0.001,
+            "maximum": 0.5
+          },
+          "kernel": {
+            "type": "string",
+            "title": "Noyau",
+            "default": "rbf",
+            "enum": [
+              "rbf",
+              "linear",
+              "poly"
+            ]
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "seasonal_naive",
+      "version": "1.0",
+      "family": "Référence",
+      "label": "Naïf saisonnier (référence)",
+      "task": [
+        "forecasting"
+      ],
+      "modality": "timeseries",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "season_length": {
+            "type": "integer",
+            "title": "Saisonnalité (pas)",
+            "default": 7,
+            "minimum": 1,
+            "maximum": 366
+          }
+        }
+      },
+      "dependencies": [
+        "statsforecast==1.7.8"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "exponential_smoothing",
+      "version": "1.0",
+      "family": "Statistique",
+      "label": "Lissage exponentiel (ETS)",
+      "task": [
+        "forecasting"
+      ],
+      "modality": "timeseries",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "trend": {
+            "type": "string",
+            "title": "Tendance",
+            "default": "add",
+            "enum": [
+              "none",
+              "add",
+              "mul"
+            ]
+          },
+          "seasonal": {
+            "type": "string",
+            "title": "Saisonnalité",
+            "default": "add",
+            "enum": [
+              "none",
+              "add",
+              "mul"
+            ]
+          },
+          "season_length": {
+            "type": "integer",
+            "title": "Saisonnalité (pas)",
+            "default": 7,
+            "minimum": 1,
+            "maximum": 366
+          }
+        }
+      },
+      "dependencies": [
+        "statsmodels==0.14.4"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "arima",
+      "version": "1.0",
+      "family": "Statistique",
+      "label": "ARIMA",
+      "task": [
+        "forecasting"
+      ],
+      "modality": "timeseries",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "p": {
+            "type": "integer",
+            "title": "p",
+            "default": 1,
+            "minimum": 0,
+            "maximum": 10
+          },
+          "d": {
+            "type": "integer",
+            "title": "d",
+            "default": 1,
+            "minimum": 0,
+            "maximum": 3
+          },
+          "q": {
+            "type": "integer",
+            "title": "q",
+            "default": 1,
+            "minimum": 0,
+            "maximum": 10
+          }
+        }
+      },
+      "dependencies": [
+        "statsmodels==0.14.4"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "gbm_lag_regressor",
+      "version": "1.0",
+      "family": "Boosting",
+      "label": "Gradient boosting sur retards",
+      "task": [
+        "forecasting"
+      ],
+      "modality": "timeseries",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "n_estimators": {
+            "type": "integer",
+            "title": "Itérations",
+            "default": 300,
+            "minimum": 10,
+            "maximum": 3000
+          },
+          "learning_rate": {
+            "type": "number",
+            "title": "Taux d'apprentissage",
+            "default": 0.05,
+            "minimum": 0.001,
+            "maximum": 1
+          }
+        }
+      },
+      "dependencies": [
+        "lightgbm==4.5.0"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": false
+    },
+    {
+      "id": "linear_svm",
+      "version": "1.0",
+      "family": "Linéaire",
+      "label": "SVM linéaire",
+      "task": [
+        "text_classification",
+        "classification"
+      ],
+      "modality": "text",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "C": {
+            "type": "number",
+            "title": "Régularisation C",
+            "default": 1.0,
+            "minimum": 0.0001,
+            "maximum": 100
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "naive_bayes",
+      "version": "1.0",
+      "family": "Probabiliste",
+      "label": "Bayes naïf multinomial",
+      "task": [
+        "text_classification"
+      ],
+      "modality": "text",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "title": "Lissage alpha",
+            "default": 1.0,
+            "minimum": 0.0001,
+            "maximum": 10
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "transformer_finetune",
+      "version": "1.0",
+      "family": "Deep learning",
+      "label": "Transformer affiné (G-DL)",
+      "task": [
+        "text_classification"
+      ],
+      "modality": "text",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "base_model": {
+            "type": "string",
+            "title": "Modèle de base",
+            "default": "camembert-base",
+            "enum": [
+              "camembert-base",
+              "distilbert-base-multilingual-cased"
+            ]
+          },
+          "epochs": {
+            "type": "integer",
+            "title": "Époques",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 20
+          }
+        }
+      },
+      "dependencies": [
+        "transformers==4.45.2",
+        "torch==2.4.1"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": true,
+      "gpu": true
+    },
+    {
+      "id": "hog_svm",
+      "version": "1.0",
+      "family": "Vision classique",
+      "label": "HOG + SVM (classique)",
+      "task": [
+        "image_classification"
+      ],
+      "modality": "image",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "pixels_per_cell": {
+            "type": "integer",
+            "title": "Pixels par cellule",
+            "default": 8,
+            "minimum": 4,
+            "maximum": 32
+          },
+          "C": {
+            "type": "number",
+            "title": "Régularisation C",
+            "default": 1.0,
+            "minimum": 0.0001,
+            "maximum": 100
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-image==0.24.0",
+        "scikit-learn==1.5.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "resnet_transfer",
+      "version": "1.0",
+      "family": "Deep learning",
+      "label": "ResNet-50 transfert (G-DL)",
+      "task": [
+        "image_classification"
+      ],
+      "modality": "image",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "epochs": {
+            "type": "integer",
+            "title": "Époques",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 200
+          },
+          "freeze_backbone": {
+            "type": "boolean",
+            "title": "Geler le réseau de base",
+            "default": true
+          }
+        }
+      },
+      "dependencies": [
+        "torch==2.4.1",
+        "torchvision==0.19.1"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": true,
+      "gpu": true
+    },
+    {
+      "id": "efficientnet_transfer",
+      "version": "1.0",
+      "family": "Deep learning",
+      "label": "EfficientNet-B0 transfert (G-DL)",
+      "task": [
+        "image_classification"
+      ],
+      "modality": "image",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "epochs": {
+            "type": "integer",
+            "title": "Époques",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "dependencies": [
+        "torch==2.4.1",
+        "timm==1.0.9"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": true,
+      "gpu": true
+    },
+    {
+      "id": "popularity",
+      "version": "1.0",
+      "family": "Référence",
+      "label": "Popularité (référence)",
+      "task": [
+        "recommendation"
+      ],
+      "modality": "interactions",
+      "params_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "dependencies": [
+        "implicit==0.7.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "item_knn",
+      "version": "1.0",
+      "family": "Voisinage",
+      "label": "k-NN article-article",
+      "task": [
+        "recommendation"
+      ],
+      "modality": "interactions",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "k": {
+            "type": "integer",
+            "title": "Voisins",
+            "default": 50,
+            "minimum": 5,
+            "maximum": 1000
+          }
+        }
+      },
+      "dependencies": [
+        "implicit==0.7.2"
+      ],
+      "determinism": "exact",
+      "deep_learning": false
+    },
+    {
+      "id": "als",
+      "version": "1.0",
+      "family": "Factorisation",
+      "label": "ALS (factorisation implicite)",
+      "task": [
+        "recommendation"
+      ],
+      "modality": "interactions",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "factors": {
+            "type": "integer",
+            "title": "Facteurs",
+            "default": 64,
+            "minimum": 8,
+            "maximum": 512
+          },
+          "regularization": {
+            "type": "number",
+            "title": "Régularisation",
+            "default": 0.01,
+            "minimum": 0.0001,
+            "maximum": 1
+          },
+          "iterations": {
+            "type": "integer",
+            "title": "Itérations",
+            "default": 15,
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "dependencies": [
+        "implicit==0.7.2"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": false
+    },
+    {
+      "id": "svd_mf",
+      "version": "1.0",
+      "family": "Factorisation",
+      "label": "Factorisation SVD (notes explicites)",
+      "task": [
+        "recommendation"
+      ],
+      "modality": "interactions",
+      "params_schema": {
+        "type": "object",
+        "properties": {
+          "factors": {
+            "type": "integer",
+            "title": "Facteurs",
+            "default": 50,
+            "minimum": 8,
+            "maximum": 512
+          },
+          "epochs": {
+            "type": "integer",
+            "title": "Époques",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 200
+          }
+        }
+      },
+      "dependencies": [
+        "scikit-surprise==1.1.4"
+      ],
+      "determinism": "tolerance",
+      "deep_learning": false
+    }
+  ]
+}
