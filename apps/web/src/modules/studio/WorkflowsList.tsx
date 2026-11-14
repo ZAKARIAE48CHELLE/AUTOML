@@ -27,7 +27,7 @@ export function WorkflowsList() {
   const blank = useMutation({ meta: { toast: 'Workflow créé' }, mutationFn: () => studioApi.createWorkflow(projectId!, 'Nouveau workflow', { schema_version: '1.0', catalog_version: CATALOG_VERSION, nodes: [], edges: [], metadata: { task, origin: 'human', objective: { primary_metric: pt.default_metric, direction: metricDirection(pt.default_metric) } } }), onSuccess: (r) => nav(`/studio/workflows/${r.workflow_id}`) })
   return (
     <>
-      <PageHeader title="Studio — Workflows" subtitle="Graphes ML versionnés. Une modification crée toujours une nouvelle version ; l'exécution ne se fait que depuis la revue." actions={<><Link to="/studio/executions"><Button variant="secondary">Exécutions</Button></Link><Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Nouveau workflow</Button></>} />
+      <PageHeader title="Studio — Workflows" subtitle="Graphes ML versionnés. Une modification crée toujours une nouvelle version ; l'exécution ne se fait que depuis la revue." actions={<><Link to="/studio/executions" data-auto-target="studio.executions"><Button variant="secondary">Exécutions</Button></Link><Button data-auto-target="studio.new" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Nouveau workflow</Button></>} />
       <ErrorBanner error={q.error ?? blank.error} />
       {q.isLoading ? <Spinner shape="table" /> : !q.data?.length ? <EmptyState title="Aucun workflow" hint="Créez-en un depuis un gabarit, ou demandez un plan à l'assistant." action={<Button onClick={() => setOpen(true)}>Nouveau workflow</Button>} /> : (
         <Table head={['Nom', 'Origine', 'Versions', 'Dernière version', 'État', 'Actions']}>{q.data.map((w) => (

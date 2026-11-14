@@ -1,7 +1,9 @@
 import type { MouseEvent } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Moon, Sun } from 'lucide-react'
-import { Card, PageHeader } from '@/components/ui'
+import { AlertTriangle, Check, Lightbulb, Moon, Sun, XCircle } from 'lucide-react'
+import { Button, Card, PageHeader } from '@/components/ui'
+import { AUTO_NAME, AUTO_SHORTCUT } from '@/modules/auto/constants'
+import { simulate, simulateResolve } from '@/modules/auto/autoBus'
 import { DARK_PALETTES, setDarkPalette, setTheme, useDarkPalette, useTheme, type DarkPalette, type Theme } from '@/lib/theme'
 import { clsx } from '@/lib/format'
 
@@ -47,7 +49,7 @@ export function Personalization() {
           })}</div>
         </Card>
 
-        <Card title="Thème du mode sombre">
+        <div data-auto-target="settings.palette"><Card title="Thème du mode sombre">
           <p className="mb-3 text-xs text-slate-500">Ces thèmes changent uniquement les couleurs du mode sombre (fond, panneaux, accents, grille du canevas). {theme === 'light' && <b className="text-slate-600">Choisir un thème active le mode sombre.</b>}</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{DARK_PALETTES.map((p, i) => {
             const on = palette === p.id && theme === 'dark'
@@ -65,7 +67,21 @@ export function Personalization() {
                 <p className="mt-0.5 px-0.5 text-xs text-slate-500">{p.mood}</p>
               </motion.button>)
           })}</div>
-        </Card>
+        </Card></div>
+
+        <div data-auto-target="settings.auto"><Card title={`${AUTO_NAME}, votre compagnon`}>
+          <p className="text-sm text-slate-600">
+            {AUTO_NAME} vit en bas de l’écran et montre ce que l’agent remarque en arrière-plan. Affichez-le ou masquez-le avec <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold">{AUTO_SHORTCUT}</kbd>.
+            Clic : discuter avec l’assistant · Clic droit : suggestions · Ampoule : une idée l’attend. Les erreurs le font revenir même masqué.
+          </p>
+          <p className="mb-2 mt-4 text-xs font-medium text-slate-500">Aperçu : événements simulés, en attendant l’agent réel</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={() => simulate('tip')}><Lightbulb className="h-3.5 w-3.5" />Simuler une idée</Button>
+            <Button size="sm" variant="secondary" onClick={() => simulate('warning')}><AlertTriangle className="h-3.5 w-3.5" />Simuler un avertissement</Button>
+            <Button size="sm" variant="secondary" onClick={() => simulate('error')}><XCircle className="h-3.5 w-3.5" />Simuler une erreur</Button>
+            <Button size="sm" variant="ghost" onClick={() => simulateResolve()}><Check className="h-3.5 w-3.5" />Résoudre l’erreur</Button>
+          </div>
+        </Card></div>
       </div>
     </>)
 }

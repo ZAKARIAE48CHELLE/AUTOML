@@ -46,7 +46,7 @@ export function TrainingCenter() {
   const blocked = prepared?.report.layers.some((l) => l.layer !== 'policy' && l.status === 'error')
   return (
     <>
-      <PageHeader title="Centre d'entraînement" subtitle="Entraînement rapide d'un modèle : un gabarit de workflow est créé, validé, approuvé puis exécuté par le Studio (une seule voie d'exécution)." actions={<><Link to="/training/models"><Button variant="secondary">Catalogue</Button></Link><Link to="/training/experiments"><Button variant="secondary">Expériences</Button></Link></>} />
+      <PageHeader title="Centre d'entraînement" subtitle="Entraînement rapide d'un modèle : un gabarit de workflow est créé, validé, approuvé puis exécuté par le Studio (une seule voie d'exécution)." actions={<><Link to="/training/models" data-auto-target="training.catalog"><Button variant="secondary">Catalogue</Button></Link><Link to="/training/experiments" data-auto-target="training.experiments"><Button variant="secondary">Expériences</Button></Link></>} />
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-2" title="Nouvel entraînement">
           <ErrorBanner error={prepare.error ?? run.error} />

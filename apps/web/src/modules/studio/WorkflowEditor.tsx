@@ -184,7 +184,7 @@ export function WorkflowEditor() {
     <div className="fixed inset-0 z-40 flex flex-col bg-slate-50" data-testid="workflow-editor">
       {/* Barre d'outils */}
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-        <Link to="/studio" title="Retour au Studio"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" />Studio</Button></Link>
+        <Link to="/studio" title="Retour au Studio" data-auto-target="editor.back"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" />Studio</Button></Link>
         <div className="min-w-0 max-w-[28rem]">
           <h1 className="truncate text-sm font-semibold text-slate-900">{wq.data!.workflow.name}</h1>
           <p className="flex flex-wrap items-center gap-1 text-[11px] text-slate-500">Version <b>{shortId(v.id)}</b> · {v.origin === 'ai' ? 'proposée par l\'IA' : 'humaine'} · {fmtDate(v.created_at)} · <StatusBadge status={v.readiness} />{dirty && <span className="font-medium text-amber-700">· modifications non enregistrées</span>}</p>
@@ -210,7 +210,7 @@ export function WorkflowEditor() {
       <div className="flex min-h-0 flex-1">
         <SidePanel side="left" title={mode === 'auto' ? 'Nœuds' : mode === 'guided' ? 'Blocs — mode Guidé' : 'Blocs — mode Expert'} open={panels.left} onClose={() => setPanel('left', false)} width={mode === 'auto' ? 232 : 300}>
           {mode === 'auto' ? <>
-            <ul className="space-y-1">{NODE_TYPES.map((t) => { const off = t.type === 'data.dataset' && spec.nodes.some((n) => n.type === 'data.dataset'); return <li key={t.type}><button disabled={off} onClick={() => add(t)} title={`${t.type} — ${t.owner}${off ? ' (un seul dataset par workflow)' : ''}`} className="flex w-full items-center gap-1.5 rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:opacity-40"><Plus className="h-3 w-3" />{t.label}<span className="ml-auto text-[10px] text-slate-400">{t.operation_class}</span></button></li> })}</ul>
+            <ul className="space-y-1">{NODE_TYPES.map((t) => { const off = t.type === 'data.dataset' && spec.nodes.some((n) => n.type === 'data.dataset'); return <li key={t.type}><button data-auto-target={`studio.block.${t.type}`} disabled={off} onClick={() => add(t)} title={`${t.type} — ${t.owner}${off ? ' (un seul dataset par workflow)' : ''}`} className="flex w-full items-center gap-1.5 rounded border border-slate-200 px-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:opacity-40"><Plus className="h-3 w-3" />{t.label}<span className="ml-auto text-[10px] text-slate-400">{t.operation_class}</span></button></li> })}</ul>
             <div className="mt-3 border-t pt-2"><label className="label" htmlFor="task">Type de pipeline</label><select id="task" className="input" value={spec.metadata.task} onChange={(e) => setTask(e.target.value as Task)}>{PIPELINE_TYPES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
             <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-slate-400">Glissez d'un port de sortie (●) vers un port d'entrée de même couleur. Seules les connexions de types compatibles sont acceptées. Suppr. pour retirer la sélection.</p>
           </> : <NodePalette spec={spec} mode={mode} columns={columns} models={models.data ?? []} onAdd={addB} onTask={setTask}

@@ -236,3 +236,15 @@ a:hover > .nav-icon, button:hover > .nav-icon { animation: wiggle .55s ease; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Auto montre un élément : anneau pulsant dans une couche à part (au-dessus des panneaux et de l'éditeur, sous Auto).
+ * Les éléments ciblés ne sont jamais restylés. */
+.auto-rings { position: fixed; inset: 0; z-index: 44; pointer-events: none; }
+.auto-ring {
+  position: absolute; left: 0; top: 0; border-radius: 12px; border: 2.5px solid #6366f1; transition: none;
+  box-shadow: 0 0 0 4px rgb(99 102 241 / .22), 0 0 18px 4px rgb(99 102 241 / .45), inset 0 0 0 1.5px rgb(255 255 255 / .7);
+  animation: autoRing 1.3s ease-in-out infinite;
+}
+.dark .auto-ring { border-color: #a5b4fc; box-shadow: 0 0 0 4px rgb(165 180 252 / .22), 0 0 22px 6px rgb(165 180 252 / .45), inset 0 0 0 1.5px rgb(15 23 42 / .6); }
+@keyframes autoRing { 0%, 100% { opacity: 1; scale: 1; } 50% { opacity: .6; scale: 1.035; } }
+@media (prefers-reduced-motion: reduce) { .auto-ring { animation: none; } }

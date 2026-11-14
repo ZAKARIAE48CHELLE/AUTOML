@@ -6,6 +6,7 @@ import { SchemaForm } from '@/components/SchemaForm'
 import { clsx } from '@/lib/format'
 import { BLOCK_MIME, checklist, type Block } from './blocks'
 import { NODE_SHAPE, Shape } from './Shape'
+import { blockTargetId, sectionTargetId } from '@/modules/auto/targets'
 
 /** Couleur d'un bloc = couleur de son port de sortie sur le canevas (on apprend ce qui se branche à quoi). */
 export const NODE_COLOR: Record<string, string> = {
@@ -28,7 +29,7 @@ interface TileDef { key: string; block: Block; label: string; shape: string; col
 function Tile({ t, suggested, onAdd }: { t: TileDef; suggested: boolean; onAdd: (b: Block) => void }) {
   const drag = (e: DragEvent) => { if (t.locked) { e.preventDefault(); return } e.dataTransfer.setData(BLOCK_MIME, JSON.stringify(t.block)); e.dataTransfer.effectAllowed = 'copy' }
   return (
-    <button type="button" draggable={!t.locked} onDragStart={drag} onClick={() => !t.locked && onAdd(t.block)} title={t.hint} aria-label={`Ajouter : ${t.label}`} aria-disabled={t.locked}
+    <button type="button" data-auto-target={blockTargetId(t.block)} draggable={!t.locked} onDragStart={drag} onClick={() => !t.locked && onAdd(t.block)} title={t.hint} aria-label={`Ajouter : ${t.label}`} aria-disabled={t.locked}
       className={clsx('palette-tile group relative flex flex-col items-center gap-1 rounded-xl border bg-white px-1.5 pb-1.5 pt-2 text-center text-[10.5px] font-medium leading-tight text-slate-700',
         t.locked ? 'cursor-not-allowed border-dashed border-slate-200 opacity-50' : 'cursor-grab border-slate-200 hover:-translate-y-0.5 hover:border-transparent hover:shadow-lg active:cursor-grabbing',
         suggested && 'tile-suggest')} style={{ ['--tile' as string]: t.color }}>
@@ -79,10 +80,10 @@ export function NodePalette({ spec, mode, columns, models, onAdd, onTask, onOpti
   return (
     <div className="space-y-4">
       <section>
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Type de pipeline</h3>
+        <h3 data-auto-target={sectionTargetId('Type de pipeline')} className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Type de pipeline</h3>
         <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Type de pipeline">
           {PIPELINE_TYPES.map((p) => { const on = p.id === task
-            return <button key={p.id} type="button" role="radio" aria-checked={on} title={`${p.label} — ${p.description}`} onClick={() => !on && onTask(p.id)}
+            return <button key={p.id} data-auto-target={`studio.type.${p.id}`} type="button" role="radio" aria-checked={on} title={`${p.label} — ${p.description}`} onClick={() => !on && onTask(p.id)}
               className={clsx('flex flex-col items-center gap-0.5 rounded-lg border p-1 text-[9.5px] leading-tight transition', on ? 'border-transparent bg-white font-semibold shadow-md' : 'border-slate-200 bg-white/60 text-slate-500 hover:-translate-y-0.5 hover:shadow')}
               style={on ? { boxShadow: `0 0 0 2px ${p.color}, 0 6px 16px -6px ${p.color}` } : undefined}>
               <Shape kind={p.shape} color={on ? p.color : '#94a3b8'} size={24} /><span className="line-clamp-2">{p.short_label}</span>
@@ -90,11 +91,11 @@ export function NodePalette({ spec, mode, columns, models, onAdd, onTask, onOpti
         </div>
         <p className="mt-2 text-[11px] leading-snug text-slate-500"><b style={{ color: pt.color }}>{pt.label}</b> — {pt.description}</p>
         {Object.keys(pt.options_schema.properties ?? {}).length > 0 && <div className="mt-2 rounded-lg border border-slate-200 bg-white/70 p-2"><SchemaForm schema={pt.options_schema} value={spec.metadata.task_options ?? {}} onChange={onOptions} /></div>}
-        {onTemplate && <button type="button" onClick={onTemplate} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-2 py-1.5 text-xs font-medium transition hover:bg-white" style={{ borderColor: pt.color, color: pt.color }}><Wand2 className="h-3.5 w-3.5" />Construire le pipeline type</button>}
+        {onTemplate && <button type="button" data-auto-target="studio.template" onClick={onTemplate} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-2 py-1.5 text-xs font-medium transition hover:bg-white" style={{ borderColor: pt.color, color: pt.color }}><Wand2 className="h-3.5 w-3.5" />Construire le pipeline type</button>}
       </section>
 
       {mode === 'guided' && (
-        <section aria-label="Progression du pipeline">
+        <section aria-label="Progression du pipeline" data-auto-target="studio.progress">
           <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-600"><span>Pipeline complet ?</span><span>{done}/{steps.length}</span></div>
           <div className="h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${(done / steps.length) * 100}%`, background: pt.color }} /></div>
           <ul className="mt-2 flex flex-wrap gap-1">{steps.map((s) => <li key={s.type} className={clsx('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px]', s.done ? 'bg-green-100 text-green-800' : s === next ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500')}>{s.done && <Check className="h-2.5 w-2.5" />}{s.label}</li>)}</ul>
@@ -107,7 +108,7 @@ export function NodePalette({ spec, mode, columns, models, onAdd, onTask, onOpti
 
       {shown.map((g) => (
         <section key={g.title}>
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.title}</h3>
+          <h3 data-auto-target={sectionTargetId(g.title)} className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.title}</h3>
           <div className={clsx('grid gap-1.5', mode === 'expert' ? 'grid-cols-4' : 'grid-cols-3')}>{g.tiles.map((t) => <Tile key={t.key} t={t} suggested={t.key === suggestedKey} onAdd={onAdd} />)}</div>
         </section>))}
       {!shown.length && <p className="text-xs text-slate-500">Aucun bloc ne correspond à « {q} ».</p>}

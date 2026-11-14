@@ -20,7 +20,7 @@ export function AssistantPage() {
   const g = parse.data?.goal
   return (
     <>
-      <PageHeader title="Assistant" subtitle="Décrivez un objectif : l'assistant le structure puis prépare un plan de workflow que vous relisez avant toute exécution." actions={<><Link to="/assistant/settings"><Button variant="secondary">Mode & politique</Button></Link><Link to="/assistant/audit"><Button variant="secondary">Journal</Button></Link></>} />
+      <PageHeader title="Assistant" subtitle="Décrivez un objectif : l'assistant le structure puis prépare un plan de workflow que vous relisez avant toute exécution." actions={<><Link to="/assistant/settings"><Button variant="secondary">Mode & politique</Button></Link><Link to="/assistant/audit" data-auto-target="assistant.audit"><Button variant="secondary">Journal</Button></Link></>} />
       <div className="grid gap-4 xl:grid-cols-2">
         <div className="space-y-4">
           <Card title={<span className="flex items-center gap-2">Du besoin au plan <SimBadge /></span>}>

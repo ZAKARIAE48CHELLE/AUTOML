@@ -23,7 +23,7 @@ export function DatasetsPage() {
     <>
       <PageHeader title="Données" subtitle="Importez un fichier, explorez-le, profilez-le et préparez-le. Les versions de dataset sont immuables." actions={<>
         <input ref={input} type="file" accept=".csv,.xlsx" className="hidden" aria-label="Choisir un fichier" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = '' }} />
-        <Button onClick={() => input.current?.click()} loading={imp.isPending}><Upload className="h-4 w-4" />Importer un fichier</Button></>} />
+        <Button data-auto-target="data.import" onClick={() => input.current?.click()} loading={imp.isPending}><Upload className="h-4 w-4" />Importer un fichier</Button></>} />
       {localErr && <ErrorBanner error={new Error(localErr)} onClose={() => setLocalErr(undefined)} />}
       <ErrorBanner error={imp.error ?? q.error} />
       <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files?.[0]) }}>
