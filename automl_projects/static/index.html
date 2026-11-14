@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoML Process Monitor & EMSI Integration Workbench</title>
+  <script>
+    if (localStorage.getItem('automl_theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    html {
+      min-height: 100%;
+      min-height: 100dvh;
+      overflow-x: auto;
+      overflow-y: auto;
+      touch-action: pan-x pan-y pinch-zoom;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      min-height: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 0;
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: auto;
+      overflow-y: auto;
+      touch-action: pan-x pan-y pinch-zoom;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .text-balance { text-wrap: balance; }
+    .text-pretty { text-wrap: pretty; }
+
+    /* Explicit transition scopes */
+    .btn-control {
+      transition-property: background-color, border-color, color, box-shadow;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+    }
+    .btn-control:active {
+      transform: scale(0.98);
+    }
+
+    .stage-card {
+      transition-property: background-color, border-color, box-shadow;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
+    }
+
+    .trace-row {
+      transition-property: background-color, border-color;
+      transition-duration: 200ms;
+      transition-timing-function: ease-out;
+    }
+
+    /* Clean subtle scrollbars */
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Markdown rendering for technical manuals */
+    .manual-prose h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin-top: 1.25rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.35rem; }
+    .manual-prose h2 { font-size: 1.05rem; font-weight: 600; color: #1e293b; margin-top: 1.1rem; margin-bottom: 0.4rem; }
+    .manual-prose h3 { font-size: 0.92rem; font-weight: 600; color: #334155; margin-top: 0.9rem; margin-bottom: 0.3rem; }
+    .manual-prose p { margin-bottom: 0.65rem; color: #334155; line-height: 1.55; }
+    .manual-prose ul, .manual-prose ol { margin-left: 1.25rem; margin-bottom: 0.65rem; color: #334155; }
+    .manual-prose li { margin-bottom: 0.25rem; }
+    .manual-prose pre { background: #0f172a; color: #e2e8f0; padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; margin: 0.65rem 0; }
+    .manual-prose code { font-family: 'JetBrains Mono', monospace; font-size: 0.8em; background: #f1f5f9; color: #0f172a; padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
+    .manual-prose pre code { background: transparent; color: inherit; padding: 0; }
+    .manual-prose table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8rem; }
+    .manual-prose th, .manual-prose td { border: 1px solid #cbd5e1; padding: 0.4rem 0.6rem; text-align: left; }
+    .manual-prose th { background: #f1f5f9; font-weight: 600; color: #0f172a; }
+
+    /* =================================================================== */
+    /* UTILITARIAN ENGINEERING DARK THEME (html.dark)                      */
+    /* =================================================================== */
+    html.dark body,
+    html.dark #slides-overlay {
+      background-color: #0b0f19 !important;
+      color: #f1f5f9 !important;
+    }
+
+    /* Core surfaces */
+    html.dark .bg-white {
+      background-color: #111827 !important;
+    }
+    html.dark .bg-slate-50,
+    html.dark .bg-slate-50\/70,
+    html.dark .bg-slate-50\/60,
+    html.dark .bg-slate-50\/50 {
+      background-color: #0f172a !important;
+    }
+    html.dark .bg-slate-100 {
+      background-color: #1e293b !important;
+    }
+    html.dark .bg-slate-200 {
+      background-color: #334155 !important;
+    }
+    html.dark .bg-slate-800 {
+      background-color: #334155 !important;
+      color: #f8fafc !important;
+    }
+    html.dark pre.bg-slate-900,
+    html.dark div.bg-slate-900 {
+      background-color: #090d16 !important;
+      border-color: #1e293b !important;
+    }
+    html.dark #floating-guide-pill,
+    html.dark #toast-container > div {
+      background-color: #1e293b !important;
+      border-color: #334155 !important;
+      color: #f8fafc !important;
+    }
+    html.dark #floating-guide-pill:hover {
+      background-color: #334155 !important;
+    }
+
+    /* Borders & Table Dividers */
+    html.dark .border-slate-100,
+    html.dark .border-slate-200,
+    html.dark .border-slate-200\/70,
+    html.dark .border-slate-200\/60 {
+      border-color: #1e293b !important;
+    }
+    html.dark .border-slate-300 {
+      border-color: #334155 !important;
+    }
+    html.dark .border-slate-700 {
+      border-color: #334155 !important;
+    }
+    html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+    html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+      border-color: #1e293b !important;
+    }
+
+    /* Typography Hierarchy */
+    html.dark .text-slate-900 { color: #f8fafc !important; }
+    html.dark .text-slate-800 { color: #e2e8f0 !important; }
+    html.dark .text-slate-700 { color: #cbd5e1 !important; }
+    html.dark .text-slate-600 { color: #94a3b8 !important; }
+    html.dark .text-slate-500 { color: #64748b !important; }
+    html.dark .text-slate-400 { color: #94a3b8 !important; }
+
+    html.dark .text-blue-600,
+    html.dark .text-blue-700 { color: #60a5fa !important; }
+    html.dark .text-blue-800 { color: #93c5fd !important; }
+    html.dark .text-emerald-600,
+    html.dark .text-emerald-700,
+    html.dark .text-emerald-800,
+    html.dark .text-emerald-900 { color: #6ee7b7 !important; }
+    html.dark .text-red-600,
+    html.dark .text-red-700,
+    html.dark .text-red-800,
+    html.dark .text-red-900 { color: #fca5a5 !important; }
+    html.dark .text-amber-800 { color: #fcd34d !important; }
+    html.dark .text-indigo-800 { color: #a5b4fc !important; }
+
+    /* Semantic Status Tints & Pills */
+    html.dark .bg-blue-50,
+    html.dark .bg-blue-50\/80,
+    html.dark .bg-blue-50\/40 {
+      background-color: rgba(30, 58, 138, 0.35) !important;
+    }
+    html.dark .border-blue-200,
+    html.dark .border-blue-300 {
+      border-color: #1d4ed8 !important;
+    }
+    html.dark .border-blue-500,
+    html.dark .border-blue-600 {
+      border-color: #3b82f6 !important;
+    }
+    html.dark .bg-emerald-50,
+    html.dark .bg-emerald-50\/40,
+    html.dark .bg-emerald-50\/30 {
+      background-color: rgba(6, 78, 59, 0.35) !important;
+    }
+    html.dark .border-emerald-200 {
+      border-color: #047857 !important;
+    }
+    html.dark .bg-red-50,
+    html.dark .bg-red-50\/40,
+    html.dark .bg-red-50\/20 {
+      background-color: rgba(127, 29, 29, 0.30) !important;
+    }
+    html.dark .border-red-200 {
+      border-color: #b91c1c !important;
+    }
+    html.dark .bg-amber-50 {
+      background-color: rgba(120, 53, 15, 0.35) !important;
+    }
+    html.dark .border-amber-200 {
+      border-color: #b45309 !important;
+    }
+    html.dark .bg-indigo-50 {
+      background-color: rgba(49, 46, 129, 0.35) !important;
+    }
+    html.dark .border-indigo-200 {
+      border-color: #4338ca !important;
+    }
+
+    /* Interactive Hover States */
+    html.dark .hover\:bg-slate-50:hover,
+    html.dark .hover\:bg-slate-50\/80:hover,
+    html.dark .hover\:bg-white:hover {
+      background-color: #1e293b !important;
+    }
+    html.dark .hover\:bg-slate-100:hover,
+    html.dark .hover\:bg-slate-200\/70:hover {
+      background-color: #334155 !important;
+    }
+    html.dark .hover\:text-slate-900:hover,
+    html.dark .hover\:text-slate-700:hover {
+      color: #f8fafc !important;
+    }
+
+    /* Inputs, Selects & Active Tabs */
+    html.dark select,
+    html.dark input[type="text"],
+    html.dark input[type="number"],
+    html.dark input[type="search"] {
+      background-color: #0f172a !important;
+      color: #f8fafc !important;
+      border-color: #334155 !important;
+      color-scheme: dark;
+    }
+    html.dark input[type="checkbox"] {
+      accent-color: #3b82f6;
+      color-scheme: dark;
+    }
+    html.dark .view-tab-active {
+      background-color: #0f172a !important;
+      color: #f8fafc !important;
+      border-color: #3b82f6 !important;
+    }
+    html.dark .schema-pill-active {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+      border-color: #3b82f6 !important;
+    }
+
+    /* Dark Scrollbars & Markdown Manuals */
+    html.dark ::-webkit-scrollbar-track { background: #0b0f19; }
+    html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+    html.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    html.dark .manual-prose h1,
+    html.dark .manual-prose h2,
+    html.dark .manual-prose h3,
+    html.dark .manual-prose th {
+      color: #f8fafc;
+      border-color: #1e293b;
+    }
+    html.dark .manual-prose p,
+    html.dark .manual-prose ul,
+    html.dark .manual-prose ol,
+    html.dark .manual-prose td {
+      color: #cbd5e1;
+      border-color: #334155;
+    }
+    html.dark .manual-prose th,
+    html.dark .manual-prose code {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    html.dark .manual-prose pre {
+      background: #090d16;
+      border: 1px solid #1e293b;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Toast notifications -->
+  <div id="toast-container" class="fixed bottom-5 left-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <div id="app-shell" class="min-h-dvh md:h-dvh flex flex-col md:flex-row">
+
+    <!-- =================================================================== -->
+    <!-- LEFT RAIL SIDEBAR (260px fixed desktop, independent scroll)         -->
+    <!-- =================================================================== -->
+    <aside id="app-sidebar" class="w-full md:w-[270px] bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 max-h-[38vh] md:max-h-dvh md:sticky md:top-0">
+
+      <!-- Lab Brand Header -->
+      <div class="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <i data-lucide="cpu" class="w-4 h-4 text-blue-600 shrink-0"></i>
+            <span class="text-sm font-bold tracking-tight text-slate-900 truncate">AutoML Process Lab</span>
+          </div>
+          <p class="text-[11px] font-mono text-slate-500 mt-0.5">EMSI 5A · E1 / E2 / E3 / E4</p>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span id="server-status-badge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 font-mono text-[10px] font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+            LIVE
+          </span>
+          <button onclick="toggleSidebar()" id="sidebar-inner-collapse-btn" title="Hide sidebar" aria-label="Hide sidebar" class="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center">
+            <i data-lucide="panel-left-close" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Constraint Filter -->
+      <div class="p-3 border-b border-slate-200 bg-slate-50/70 shrink-0 space-y-1.5">
+        <label for="constraint-filter" class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Filter by Engineering Constraint
+        </label>
+        <select id="constraint-filter" onchange="filterSidebarProjects()" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600">
+          <option value="all">All 8 Open-Source Libraries</option>
+          <option value="ultra_low_latency">Ultra-Low Latency (&lt; 1 ms MOJO)</option>
+          <option value="low_latency">Fast Microservice (1 - 5 ms ONNX)</option>
+          <option value="tight_budget">Tight CPU / Time Budget</option>
+          <option value="white_box">White-Box Python Source Export</option>
+          <option value="zero_shot">Zero-Shot Training (&lt; 1s Fit)</option>
+          <option value="max_accuracy">Max Tabular Accuracy Stacking</option>
+          <option value="mlops">OOP Low-Code + MLflow MLOps</option>
+        </select>
+      </div>
+
+      <!-- Scrollable Library Selector -->
+      <nav id="projects-nav" class="flex-1 overflow-y-auto p-2 space-y-1" aria-label="AutoML Libraries">
+        <!-- Populated by JS -->
+      </nav>
+
+      <!-- Bottom Utility Controls -->
+      <div class="p-3 border-t border-slate-200 bg-slate-50 flex flex-col gap-1.5 shrink-0">
+        <button onclick="openManualModal('selection')" class="btn-control w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>Architecture & CASH Spec</span>
+          </span>
+          <i data-lucide="external-link" class="w-3 h-3 text-slate-400"></i>
+        </button>
+        <button onclick="launchSlidesPresentation()" class="btn-control w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <i data-lucide="presentation" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>Defense Slides Deck (9)</span>
+          </span>
+          <span class="font-mono text-[10px] text-slate-400">F5</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- =================================================================== -->
+    <!-- MAIN WORKSPACE CONTAINER (Independent Scroll)                       -->
+    <!-- =================================================================== -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+      <!-- Sticky Top Workspace Header -->
+      <header class="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 z-20">
+
+        <!-- Sidebar Toggle & Library Meta -->
+        <div class="flex items-center gap-3 min-w-0">
+          <button onclick="toggleSidebar()" id="sidebar-toggle-btn" aria-expanded="true" aria-controls="app-sidebar" title="Hide library sidebar" class="btn-control min-h-[34px] px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1.5 shrink-0">
+            <i data-lucide="panel-left-close" class="w-3.5 h-3.5 text-slate-600"></i>
+            <span>Hide Sidebar</span>
+          </button>
+
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 id="header-lib-name" class="text-base font-bold text-slate-900 tracking-tight text-balance">AutoGluon</h1>
+              <span id="header-lib-creator" class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700">AWS</span>
+              <span id="header-dataset-pill" class="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[11px] font-mono text-blue-800">telco_churn · 500x9</span>
+            </div>
+            <p id="header-lib-paradigm" class="text-xs text-slate-500 mt-0.5 truncate max-w-xl">
+              Multi-layer Stacking & Ensembling
+            </p>
+          </div>
+        </div>
+
+        <!-- View Mode Switcher -->
+        <div class="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg border border-slate-200 gap-0.5 max-w-full">
+          <button onclick="switchView('monitor')" id="view-btn-monitor" class="view-tab-active btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-semibold bg-white text-slate-900 border border-slate-200 shadow-sm flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>1. Process & Decision Monitor</span>
+          </button>
+          <button onclick="switchView('integration')" id="view-btn-integration" class="btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="blocks" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>2. EMSI Integration Blueprint</span>
+          </button>
+          <button onclick="openDatasetDrawer()" class="btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="table-2" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>Dataset Preview</span>
+          </button>
+          <button onclick="switchView('schema')" id="view-btn-schema" class="btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="network" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>3. Library Schema & Elements</span>
+          </button>
+        </div>
+
+        <!-- Execution & Trace Playback Controls -->
+        <div class="flex items-center gap-2.5">
+          <button onclick="toggleTheme()" id="theme-toggle-btn" title="Switch between Dark and Light theme" class="btn-control min-h-[34px] px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="sun" id="theme-toggle-icon" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span id="theme-toggle-label">Light Mode</span>
+          </button>
+          <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none" title="Animate decision steps sequentially when running">
+            <input type="checkbox" id="trace-animate-toggle" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-600">
+            <span>Step-by-Step Trace</span>
+          </label>
+          <button onclick="runAndTracePipeline()" id="run-trace-btn" class="btn-control min-h-[38px] px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-2 shadow-sm">
+            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+            <span>Run & Trace Process</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Workspace Body -->
+      <main id="workspace-scroll-body" class="flex-1 overflow-auto p-5 pb-28 space-y-5">
+
+        <!-- =============================================================== -->
+        <!-- VIEW 1: PROCESS & DECISION MONITOR                              -->
+        <!-- =============================================================== -->
+        <section id="view-monitor" class="space-y-5 max-w-[1600px] mx-auto">
+
+          <!-- Row 1: 4-Stage Pipeline Bar (Interactive Stage Filter) -->
+          <div class="bg-white border border-slate-200 rounded-xl p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">How the Library Decides: 4-Stage Pipeline</h2>
+                <span class="text-[11px] text-slate-500">(Click a stage to filter the trace log below)</span>
+              </div>
+              <button onclick="filterTraceByStage('ALL')" id="stage-filter-reset-btn" class="hidden text-xs font-medium text-blue-600 hover:underline">
+                Show All Trace Steps
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="pipeline-stages-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Row 2: 12-Column Engineering Split -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+            <!-- LEFT 7 COLUMNS: Candidate Evaluation Table + Chronological Trace -->
+            <div class="lg:col-span-7 space-y-5 min-w-0">
+
+              <!-- Panel A: Candidate Models Evaluation & Pruning Table -->
+              <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-900">Candidate Models Evaluated & Pruning Decisions</h3>
+                    <p class="text-xs text-slate-500">Every model family tested, ensembled, or rejected during search.</p>
+                  </div>
+                  <div class="flex items-center gap-1.5 text-[11px] font-mono">
+                    <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">WINNER</span>
+                    <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">ENSEMBLED</span>
+                    <span class="px-2 py-0.5 rounded bg-red-50 text-red-800 border border-red-200">PRUNED</span>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <th class="py-2.5 px-3">Status</th>
+                        <th class="py-2.5 px-3">Model / Layer</th>
+                        <th class="py-2.5 px-3" id="candidate-metric-header">Score</th>
+                        <th class="py-2.5 px-3">Fit / Latency</th>
+                        <th class="py-2.5 px-3">Selection / Pruning Rationale</th>
+                      </tr>
+                    </thead>
+                    <tbody id="candidate-table-body" class="divide-y divide-slate-100">
+                      <!-- Populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Panel B: Chronological Decision Trace Log -->
+              <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/60">
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-900">Chronological Internal Decision Trace</h3>
+                    <p id="trace-playback-banner" class="text-xs text-slate-500">Inspect each heuristic decision taken from schema load to export.</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button onclick="replayTraceAnimation()" id="replay-trace-btn" class="btn-control px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1">
+                      <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                      <span>Replay Steps</span>
+                    </button>
+                    <button onclick="stopTraceAnimation()" id="stop-trace-btn" class="hidden btn-control px-2.5 py-1 rounded border border-red-200 bg-red-50 text-xs font-medium text-red-700 flex items-center gap-1">
+                      <i data-lucide="square" class="w-3 h-3"></i>
+                      <span>Stop</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <th class="py-2 px-3 w-14">Step</th>
+                        <th class="py-2 px-3 w-24">Phase</th>
+                        <th class="py-2 px-3 w-20 text-right">Time</th>
+                        <th class="py-2 px-3">Action & Observation</th>
+                        <th class="py-2 px-3">Algorithmic Decision Taken</th>
+                      </tr>
+                    </thead>
+                    <tbody id="trace-table-body" class="divide-y divide-slate-100">
+                      <!-- Populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT 5 COLUMNS: Winner Explanation + Live Prediction Tester -->
+            <div class="lg:col-span-5 space-y-5 min-w-0">
+
+              <!-- Panel C: Winner Selection Rule & Feature Attribution -->
+              <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div>
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selected Champion Model</span>
+                    <h3 id="winner-name-el" class="text-sm font-bold text-slate-900 mt-0.5 text-balance">--</h3>
+                  </div>
+                  <span class="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[11px] font-mono font-semibold text-emerald-800 shrink-0">
+                    SELECTED
+                  </span>
+                </div>
+
+                <div>
+                  <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Mathematical Selection Rule</span>
+                  <div id="winner-formula-el" class="mt-1 px-3 py-2 rounded-lg bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto">
+                    --
+                  </div>
+                </div>
+
+                <div>
+                  <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Why It Beat Runner-Up</span>
+                  <ul id="winner-reasons-el" class="mt-1.5 space-y-1 text-xs text-slate-700 list-disc pl-4 text-pretty">
+                    <!-- Populated by JS -->
+                  </ul>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Global Feature Importances</span>
+                    <span class="text-[11px] font-mono text-slate-400">Normalized Weight</span>
+                  </div>
+                  <div id="feature-importance-bars" class="space-y-2">
+                    <!-- Populated by JS -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel D: Inline Live Decision Tester -->
+              <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-900">Inline Live Decision Tester</h3>
+                    <p class="text-xs text-slate-500">Edit inputs to inspect prediction & per-feature impact.</p>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="applyInferencePreset('risk')" class="btn-control px-2.5 py-1 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[11px] font-medium text-amber-900">
+                      High-Risk Case
+                    </button>
+                    <button type="button" onclick="applyInferencePreset('safe')" class="btn-control px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[11px] font-medium text-emerald-900">
+                      Normal Case
+                    </button>
+                  </div>
+                </div>
+
+                <form id="inference-form" onsubmit="event.preventDefault(); submitInference();" class="space-y-3">
+                  <div id="inference-fields" class="grid grid-cols-2 gap-2.5">
+                    <!-- Populated by JS -->
+                  </div>
+                  <div class="flex items-center justify-between pt-2">
+                    <button type="button" onclick="resetInferenceDefaults()" class="text-xs text-slate-500 hover:text-slate-800 underline">
+                      Reset Defaults
+                    </button>
+                    <button type="submit" class="btn-control min-h-[38px] px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5">
+                      <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
+                      <span>Test Prediction</span>
+                    </button>
+                  </div>
+                </form>
+
+                <!-- Prediction Result & Per-Feature Impact -->
+                <div class="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Output</span>
+                    <div class="flex items-center gap-1.5">
+                      <span id="infer-latency-badge" class="px-2 py-0.5 rounded bg-white border border-slate-200 font-mono text-[11px] text-slate-700 tabular-nums">-- ms</span>
+                      <span id="infer-engine-badge" class="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 font-mono text-[11px] text-blue-800">--</span>
+                    </div>
+                  </div>
+
+                  <div id="infer-output-label" class="text-base font-bold text-slate-900 tabular-nums">
+                    --
+                  </div>
+
+                  <div id="infer-prob-wrapper" class="space-y-1">
+                    <div class="flex justify-between text-[11px] font-mono text-slate-600 tabular-nums">
+                      <span>Confidence / Probability</span>
+                      <span id="infer-prob-text" class="font-bold text-slate-900">--%</span>
+                    </div>
+                    <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div id="infer-prob-bar" class="h-full bg-blue-600 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                  </div>
+
+                  <p id="infer-explanation-text" class="text-xs text-slate-600 leading-snug text-pretty">
+                    --
+                  </p>
+
+                  <!-- Per-Feature Decision Delta Impact -->
+                  <div class="pt-2.5 border-t border-slate-200">
+                    <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Per-Feature Decision Contribution</span>
+                    <div id="infer-impacts-list" class="mt-2 space-y-1.5">
+                      <!-- Populated by JS -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 2: EMSI INTEGRATION BLUEPRINT                              -->
+        <!-- =============================================================== -->
+        <section id="view-integration" class="hidden space-y-5 max-w-[1600px] mx-auto">
+
+          <!-- Row 1: Engineering Applicability Spec (When to Use / Avoid) -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div>
+                <h2 class="text-base font-bold text-slate-900">Production Engineering Specification & Trade-offs</h2>
+                <p class="text-xs text-slate-500">Practical criteria for integrating this library into your EMSI AUTOML platform.</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 font-mono text-xs">
+                <span class="px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700">Target: <strong id="spec-target-service">e2-training-service</strong></span>
+                <span class="px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700">Export: <strong id="spec-serialization">--</strong></span>
+                <span class="px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">Latency: <strong id="spec-latency">--</strong></span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="p-4 rounded-lg bg-emerald-50/40 border border-emerald-200">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-900 flex items-center gap-1.5 mb-2">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+                  <span>When to Integrate This Library</span>
+                </h3>
+                <ul id="when-to-use-list" class="space-y-1.5 text-xs text-slate-700 list-disc pl-4 text-pretty">
+                  <!-- Populated by JS -->
+                </ul>
+              </div>
+
+              <div class="p-4 rounded-lg bg-red-50/40 border border-red-200">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-red-900 flex items-center gap-1.5 mb-2">
+                  <i data-lucide="alert-circle" class="w-4 h-4 text-red-600"></i>
+                  <span>When to Avoid / Architectural Limits</span>
+                </h3>
+                <ul id="when-to-avoid-list" class="space-y-1.5 text-xs text-slate-700 list-disc pl-4 text-pretty">
+                  <!-- Populated by JS -->
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: EMSI Microservices Architecture Wiring Map -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="mb-3">
+              <h2 class="text-sm font-bold text-slate-900">Where It Plugs Into D:\EMSI\5emme\AUTOML Microservices</h2>
+              <p class="text-xs text-slate-500">End-to-end call flow across your 4 team services (`e1` -> `e2` -> `e3` -> `e4`).</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
+                <div class="font-mono text-[10px] font-bold text-slate-500">E1 · DATA SERVICE</div>
+                <div class="font-bold text-slate-900 mt-1">services/e1-data-service</div>
+                <div class="font-mono text-[11px] text-blue-700 mt-1">GET /datasets/{id} · POST /splits</div>
+                <p class="text-slate-600 mt-1.5 leading-snug">Extracts dataset profile, missing ratios, and split Parquet/CSV paths passed to Stage 1.</p>
+              </div>
+
+              <div class="p-3.5 rounded-lg border-2 border-blue-600 bg-blue-50/40">
+                <div class="font-mono text-[10px] font-bold text-blue-700">E2 · TRAINING HUB (PRIMARY TARGET)</div>
+                <div class="font-bold text-slate-900 mt-1">services/e2-training-service</div>
+                <div class="font-mono text-[11px] text-blue-800 mt-1">MODELS_CATALOG · POST /training/jobs</div>
+                <p class="text-slate-700 mt-1.5 leading-snug">Registers the library spec in <code class="font-mono">MODELS_CATALOG</code> and delegates execution to <code class="font-mono">adapters/&lt;lib&gt;_adapter.py</code>.</p>
+              </div>
+
+              <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
+                <div class="font-mono text-[10px] font-bold text-slate-500">E3 · ASSISTANT SERVICE</div>
+                <div class="font-bold text-slate-900 mt-1">services/e3-assistant-service</div>
+                <div class="font-mono text-[11px] text-blue-700 mt-1">POST /assistant/proposals</div>
+                <p class="text-slate-600 mt-1.5 leading-snug">Uses constraint rules & Arbitrator logic to recommend the optimal library & explain SHAP/leaderboard winners.</p>
+              </div>
+
+              <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
+                <div class="font-mono text-[10px] font-bold text-slate-500">E4 · WORKFLOW STUDIO & UI</div>
+                <div class="font-bold text-slate-900 mt-1">services/e4-studio-service & apps/web</div>
+                <div class="font-mono text-[11px] text-blue-700 mt-1">train.model · train.tune · Export</div>
+                <p class="text-slate-600 mt-1.5 leading-snug">Triggers DAG nodes (`POST /training/jobs`), streams SSE events, and packages exports from `e2` artifacts.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: Copyable EMSI Integration Code Inspector -->
+          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
+              <div class="flex flex-wrap items-center gap-1">
+                <button onclick="switchIntegrationCodeTab('adapter')" id="code-tab-adapter" class="view-tab-active btn-control px-3 py-1.5 rounded-md text-xs font-semibold bg-white text-slate-900 border border-slate-300 shadow-sm">
+                  1. Adapter Class
+                </button>
+                <button onclick="switchIntegrationCodeTab('catalog')" id="code-tab-catalog" class="btn-control px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900">
+                  2. e2 MODELS_CATALOG Entry
+                </button>
+                <button onclick="switchIntegrationCodeTab('wiring')" id="code-tab-wiring" class="btn-control px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900">
+                  3. FastAPI Endpoint & CLI
+                </button>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <span id="integration-code-filename" class="font-mono text-xs text-slate-600">services/e2-training-service/app/adapters/autogluon_adapter.py</span>
+                <button onclick="copyIntegrationCode()" class="btn-control px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  <span>Copy Code</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 p-4 overflow-x-auto max-h-[380px]">
+              <pre id="integration-code-pre" class="font-mono text-xs text-slate-100 leading-relaxed select-all"></pre>
+            </div>
+          </div>
+
+          <!-- Row 4: Interactive Constraint Arbitrator Matrix -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div>
+                <h2 class="text-sm font-bold text-slate-900">Interactive Library Arbitrator (Compare All 8 Libraries)</h2>
+                <p class="text-xs text-slate-500">Test target deployment constraints to rank every framework objectively.</p>
+              </div>
+              <span id="arbitrator-winner-pill" class="px-3 py-1 rounded bg-blue-50 border border-blue-200 font-mono text-xs font-bold text-blue-800">
+                Top Match: --
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1" for="arb-priority">Primary Priority</label>
+                <select id="arb-priority" onchange="runArbitration()" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800">
+                  <option value="accuracy">Max Tabular Accuracy</option>
+                  <option value="latency">Ultra-Low Latency (&lt; 1ms)</option>
+                  <option value="budget">Tight CPU Compute Budget</option>
+                  <option value="audit">Pure Python Audit / White-Box</option>
+                  <option value="zeroshot">Zero Training Time (Cold Start)</option>
+                  <option value="mlops">Low-Code OOP & MLflow</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1" for="arb-env">Target Serving Runtime</label>
+                <select id="arb-env" onchange="runArbitration()" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800">
+                  <option value="python">Python Microservice (FastAPI)</option>
+                  <option value="java">Java JVM (Spring Boot)</option>
+                  <option value="cpp_go">C++ / Go Runtime (ONNX)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1" for="arb-latency">Latency SLA Budget</label>
+                <select id="arb-latency" onchange="runArbitration()" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800">
+                  <option value="1.0">&lt; 1 ms (Real-time Scoring)</option>
+                  <option value="5.0">1 - 5 ms (Fast REST API)</option>
+                  <option value="50.0" selected>Up to 50 ms (Standard API / Batch)</option>
+                </select>
+              </div>
+              <div class="flex flex-col justify-end gap-1.5 pb-1">
+                <label class="inline-flex items-center gap-2 text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="arb-audit" onchange="runArbitration()" class="rounded border-slate-300 text-blue-600">
+                  <span>Require inspectable .py code</span>
+                </label>
+                <label class="inline-flex items-center gap-2 text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="arb-budget" onchange="runArbitration()" class="rounded border-slate-300 text-blue-600">
+                  <span>Restricted CPU / No GPU</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th class="py-2 px-3 w-14">Rank</th>
+                    <th class="py-2 px-3">Library</th>
+                    <th class="py-2 px-3 w-36">Fit Score</th>
+                    <th class="py-2 px-3">Latency</th>
+                    <th class="py-2 px-3">Arbitration Rationale</th>
+                    <th class="py-2 px-3 w-24 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="arbitrator-table-body" class="divide-y divide-slate-100">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 3: LIBRARY SCHEMA & ELEMENTS REFERENCE                     -->
+        <!-- =============================================================== -->
+        <section id="view-schema" class="hidden space-y-5 max-w-[1600px] mx-auto">
+
+          <!-- Row 1: Library Internal Architecture & Data-Flow Schema -->
+          <div class="bg-white border border-slate-200 rounded-xl p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 id="schema-lib-title" class="text-sm font-bold text-slate-900">Library Internal Architecture &amp; Object Schema</h2>
+                <p id="schema-arch-summary" class="text-xs text-slate-600 mt-1 max-w-4xl text-pretty">--</p>
+              </div>
+              <button onclick="setSchemaCategoryFilter('ALL')" id="schema-flow-reset-btn" class="hidden text-xs font-medium text-blue-600 hover:underline shrink-0">
+                Show All Elements
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3" id="schema-arch-flow-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Row 2: Complete Element-by-Element Dictionary -->
+          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-bold text-slate-900">What Each Element of the Library Is For</h2>
+                <p class="text-xs text-slate-500">Every core class, internal engine, parameter group, and disk artifact mapped to EMSI services.</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div id="schema-category-pills" class="flex flex-wrap items-center gap-1">
+                  <button onclick="setSchemaCategoryFilter('ALL')" data-schema-cat="ALL" class="btn-control px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-900 text-white border border-slate-900">ALL</button>
+                  <button onclick="setSchemaCategoryFilter('Core API & Classes')" data-schema-cat="Core API & Classes" class="btn-control px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">Core API &amp; Classes</button>
+                  <button onclick="setSchemaCategoryFilter('Internal Engine & Search')" data-schema-cat="Internal Engine & Search" class="btn-control px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">Internal Engine &amp; Search</button>
+                  <button onclick="setSchemaCategoryFilter('Hyperparameters & Knobs')" data-schema-cat="Hyperparameters & Knobs" class="btn-control px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">Hyperparameters &amp; Knobs</button>
+                  <button onclick="setSchemaCategoryFilter('Artifacts & Storage')" data-schema-cat="Artifacts & Storage" class="btn-control px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">Artifacts &amp; Storage</button>
+                </div>
+                <input id="schema-search-input" type="search" oninput="onSchemaSearchInput(this.value)" placeholder="Filter symbol or purpose..."
+                  class="h-8 px-2.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 w-48">
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th class="py-2.5 px-4 w-56">Element / Symbol</th>
+                    <th class="py-2.5 px-4">What It Is For (Role &amp; Purpose)</th>
+                    <th class="py-2.5 px-4">Internal Mechanism &amp; I/O Contract</th>
+                    <th class="py-2.5 px-4 w-80">Code Usage &amp; EMSI Service Mapping</th>
+                  </tr>
+                </thead>
+                <tbody id="schema-elements-table-body" class="divide-y divide-slate-100">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Row 3: 12-Column Split — Hyperparameters Schema (7 cols) + Project Files & Disk Artifact Schema (5 cols) -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+            <!-- Left 7 cols: Configuration & Hyperparameter Schema -->
+            <div class="lg:col-span-7 bg-white border border-slate-200 rounded-xl overflow-hidden min-w-0">
+              <div class="px-4 py-3 border-b border-slate-200 bg-slate-50/70">
+                <h3 class="text-sm font-semibold text-slate-900">Configuration &amp; Hyperparameter Schema</h3>
+                <p class="text-xs text-slate-500">Accepted parameter contracts, defaults, and production trade-offs.</p>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <th class="py-2 px-3">Parameter</th>
+                      <th class="py-2 px-3">Type &amp; Default</th>
+                      <th class="py-2 px-3">Allowed Values</th>
+                      <th class="py-2 px-3">What It Controls &amp; Trade-Off</th>
+                    </tr>
+                  </thead>
+                  <tbody id="schema-params-table-body" class="divide-y divide-slate-100">
+                    <!-- Populated by JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right 5 cols: Project Files & Disk Artifact Schema -->
+            <div class="lg:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden min-w-0">
+              <div class="px-4 py-3 border-b border-slate-200 bg-slate-50/70">
+                <h3 class="text-sm font-semibold text-slate-900">Project Files &amp; Disk Artifact Schema</h3>
+                <p class="text-xs text-slate-500">Exact repository files and exported artifacts in <code class="font-mono">automl_projects/</code>.</p>
+              </div>
+              <div id="schema-files-list" class="divide-y divide-slate-100 p-4 space-y-3">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+          </div>
+
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- BOTTOM-RIGHT PERSISTENT PAGE GUIDE (Collapsible, Required Position)   -->
+  <!-- ===================================================================== -->
+  <div id="floating-guide-container" class="fixed bottom-5 right-5 z-40 flex flex-col items-end">
+
+    <!-- Expanded Guide Card -->
+    <div id="floating-guide-card" class="hidden w-[360px] max-w-[calc(100vw-2.5rem)] bg-white border border-slate-300 rounded-xl shadow-xl mb-2.5 overflow-hidden flex flex-col">
+
+      <div class="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h4 id="guide-card-title" class="text-xs font-bold text-slate-900">Guide: AutoGluon</h4>
+          <p id="guide-card-subtitle" class="text-[11px] font-mono text-slate-500">AWS · Binary Classification</p>
+        </div>
+        <button onclick="toggleFloatingGuide()" aria-label="Close guide" class="min-w-[32px] min-h-[32px] rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 flex items-center justify-center">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Guide Subtabs -->
+      <div class="flex border-b border-slate-200 bg-slate-50/50 px-2 pt-2 gap-1 text-xs">
+        <button onclick="switchGuideTab('usage')" id="guide-tab-usage" class="px-3 py-1.5 rounded-t-md font-semibold text-blue-700 bg-white border-t border-x border-slate-200 -mb-px">Monitor Guide</button>
+        <button onclick="switchGuideTab('cli')" id="guide-tab-cli" class="px-3 py-1.5 rounded-t-md font-medium text-slate-600 hover:text-slate-900">Terminal CLI</button>
+        <button onclick="switchGuideTab('specs')" id="guide-tab-specs" class="px-3 py-1.5 rounded-t-md font-medium text-slate-600 hover:text-slate-900">Specs</button>
+      </div>
+
+      <div class="p-4 text-xs text-slate-700 space-y-3 max-h-64 overflow-y-auto">
+        <!-- Usage -->
+        <div id="guide-sub-usage" class="space-y-2.5">
+          <p id="guide-paradigm-desc" class="text-slate-600 leading-relaxed text-pretty">--</p>
+          <div class="border-t border-slate-100 pt-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">How to Use This Workbench</span>
+            <ol class="mt-1.5 space-y-1 list-decimal list-inside text-slate-700 leading-snug">
+              <li>Click <strong>Run & Trace Process</strong> to watch stages 1–4 step by step.</li>
+              <li>Inspect <strong>PRUNED</strong> vs <strong>WINNER</strong> rows to see why models were rejected or combined.</li>
+              <li>Modify inputs in the <strong>Live Decision Tester</strong> to observe feature impacts.</li>
+              <li>Open <strong>2. EMSI Integration Blueprint</strong> for adapter code ready for <code class="font-mono">e2-training-service</code>.</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- CLI -->
+        <div id="guide-sub-cli" class="hidden space-y-2.5">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-semibold text-slate-500">1. Install Dependencies</span>
+              <button onclick="copyElText('guide-cli-install')" class="text-blue-600 hover:underline text-[11px]">Copy</button>
+            </div>
+            <pre id="guide-cli-install" class="p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto select-all">--</pre>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-semibold text-slate-500">2. Standalone Train & Predict</span>
+              <button onclick="copyElText('guide-cli-train')" class="text-blue-600 hover:underline text-[11px]">Copy</button>
+            </div>
+            <pre id="guide-cli-train" class="p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto select-all">--</pre>
+            <pre id="guide-cli-predict" class="mt-1.5 p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto select-all">--</pre>
+          </div>
+        </div>
+
+        <!-- Specs -->
+        <div id="guide-sub-specs" class="hidden space-y-2">
+          <div class="flex justify-between py-1.5 border-b border-slate-100">
+            <span class="text-slate-500">Serving Latency:</span>
+            <span id="guide-spec-latency" class="font-mono font-semibold text-slate-900">--</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100">
+            <span class="text-slate-500">Serialization:</span>
+            <span id="guide-spec-export" class="font-mono font-semibold text-slate-900">--</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100">
+            <span class="text-slate-500">Production Runtime:</span>
+            <span id="guide-spec-runtime" class="font-mono font-semibold text-slate-900">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <span class="font-mono text-[10px] text-slate-500">MANUAL.md</span>
+        <button onclick="openManualModal('project')" class="btn-control px-3 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium flex items-center gap-1.5">
+          <span>Read Full Manual</span>
+          <i data-lucide="external-link" class="w-3 h-3"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Compact Floating Trigger Pill -->
+    <button onclick="toggleFloatingGuide()" id="floating-guide-pill" class="btn-control min-h-[42px] px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 shadow-lg flex items-center gap-2.5 text-xs font-semibold">
+      <i data-lucide="book-open" class="w-4 h-4 text-blue-400"></i>
+      <span id="guide-pill-label">Project Guide & CLI</span>
+      <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400"></i>
+    </button>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- DATASET PREVIEW MODAL DRAWER                                          -->
+  <!-- ===================================================================== -->
+  <div id="dataset-drawer" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4" onclick="closeDatasetDrawer()">
+    <div class="w-full max-w-5xl max-h-[86vh] bg-white border border-slate-200 rounded-xl shadow-2xl flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+      <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h3 id="dataset-drawer-title" class="text-sm font-bold text-slate-900">Dataset Preview</h3>
+          <p id="dataset-drawer-sub" class="text-xs text-slate-500">First 30 rows & statistical schema profile</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="loadProjectDataset(true)" class="btn-control px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Regenerate</span>
+          </button>
+          <button onclick="exportDatasetCSV()" class="btn-control px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Export CSV</span>
+          </button>
+          <button onclick="closeDatasetDrawer()" aria-label="Close dataset drawer" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/70">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-4">
+        <div id="dataset-stats-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <!-- Stats populated by JS -->
+        </div>
+        <div class="border border-slate-200 rounded-lg overflow-x-auto max-h-[420px]">
+          <table id="dataset-table-el" class="w-full text-left border-collapse text-xs font-mono">
+            <!-- Populated by JS -->
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- TECHNICAL MANUAL MODAL                                                -->
+  <!-- ===================================================================== -->
+  <div id="manual-modal" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4" onclick="closeManualModal()">
+    <div class="w-full max-w-4xl max-h-[86vh] bg-white border border-slate-200 rounded-xl shadow-2xl flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+      <div class="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h3 id="manual-modal-title" class="text-sm font-bold text-slate-900">Technical Documentation</h3>
+          <p class="text-xs text-slate-500">Markdown Reference</p>
+        </div>
+        <button onclick="closeManualModal()" aria-label="Close manual" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/70">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="manual-modal-body" class="p-6 overflow-y-auto manual-prose text-xs">
+        <!-- Rendered markdown -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- CLEAN TECHNICAL SLIDES DECK OVERLAY                                   -->
+  <!-- ===================================================================== -->
+  <div id="slides-overlay" class="hidden fixed inset-0 z-50 bg-slate-50 text-slate-900 flex flex-col justify-between overflow-hidden select-none">
+    <div class="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2.5">
+        <i data-lucide="presentation" class="w-4 h-4 text-blue-600"></i>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-700">AutoML Engineering Presentation · EMSI 5A</span>
+      </div>
+      <span id="slide-counter" class="px-2.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-xs font-semibold text-slate-700">1 / 9</span>
+      <button onclick="exitSlidesPresentation()" class="btn-control px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+        <span>Exit (Esc)</span>
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <div id="slide-container" class="flex-1 flex items-center justify-center p-6 md:p-10 overflow-hidden">
+      <!-- Slide HTML injected here -->
+    </div>
+
+    <div class="h-14 border-t border-slate-200 bg-white px-6 flex items-center justify-between shrink-0">
+      <span class="hidden sm:inline font-mono text-xs text-slate-500">Left/Right Arrows or Space to navigate</span>
+      <div id="slide-dots" class="flex items-center gap-1.5"></div>
+      <div class="flex items-center gap-2">
+        <button onclick="prevSlide()" class="btn-control px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700">Prev</button>
+        <button onclick="nextSlide()" class="btn-control px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT CONTROLLER                                                 -->
+  <!-- ===================================================================== -->
+  <script>
+    let projectsData = [];
+    let currentProjectId = "01_autogluon";
+    let currentView = "monitor";
+    let currentSelectionData = null;
+    let currentDataset = null;
+    let activeStageFilter = "ALL";
+    let activeCodeTab = "adapter";
+    let activeSchemaCategory = "ALL";
+    let schemaSearchQuery = "";
+    let isSidebarHidden = false;
+    let traceTimerId = null;
+
+    function toggleSidebar() {
+      isSidebarHidden = !isSidebarHidden;
+      const sidebar = document.getElementById("app-sidebar");
+      const btn = document.getElementById("sidebar-toggle-btn");
+      if (!sidebar || !btn) return;
+
+      sidebar.classList.toggle("hidden", isSidebarHidden);
+      btn.setAttribute("aria-expanded", String(!isSidebarHidden));
+      btn.title = isSidebarHidden ? "Show library sidebar" : "Hide library sidebar";
+      btn.innerHTML = isSidebarHidden
+        ? `<i data-lucide="panel-left-open" class="w-3.5 h-3.5 text-blue-600"></i><span>Show Sidebar</span>`
+        : `<i data-lucide="panel-left-close" class="w-3.5 h-3.5 text-slate-600"></i><span>Hide Sidebar</span>`;
+      lucide.createIcons();
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById("toast-container");
+      const el = document.createElement("div");
+      el.className = "px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium shadow-lg border border-slate-700 flex items-center gap-2 pointer-events-auto";
+      el.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i><span>${msg}</span>`;
+      container.appendChild(el);
+      lucide.createIcons();
+      setTimeout(() => { el.remove(); }, 2400);
+    }
+
+    function applyThemeState(theme) {
+      const isDark = theme === "dark";
+      document.documentElement.classList.toggle("dark", isDark);
+      const btn = document.getElementById("theme-toggle-btn");
+      if (btn) {
+        btn.innerHTML = isDark
+          ? `<i data-lucide="sun" id="theme-toggle-icon" class="w-3.5 h-3.5 text-amber-400"></i><span id="theme-toggle-label">Light Mode</span>`
+          : `<i data-lucide="moon" id="theme-toggle-icon" class="w-3.5 h-3.5 text-slate-600"></i><span id="theme-toggle-label">Dark Mode</span>`;
+      }
+      lucide.createIcons();
+    }
+
+    function toggleTheme() {
+      const next = document.documentElement.classList.contains("dark") ? "light" : "dark";
+      localStorage.setItem("automl_theme", next);
+      applyThemeState(next);
+    }
+
+    async function init() {
+      const initialTheme = localStorage.getItem("automl_theme") === "light" ? "light" : "dark";
+      applyThemeState(initialTheme);
+      try {
+        const res = await fetch("/api/projects");
+        const data = await res.json();
+        projectsData = data.projects;
+        renderProjectsNav();
+        await selectProject(currentProjectId);
+        runArbitration();
+      } catch (err) {
+        console.error("Initialization error:", err);
+      }
+    }
+
+    function filterSidebarProjects() {
+      renderProjectsNav();
+    }
+
+    function renderProjectsNav() {
+      const nav = document.getElementById("projects-nav");
+      const filterVal = document.getElementById("constraint-filter").value;
+
+      const filtered = projectsData.filter(p => {
+        if (filterVal === "all") return true;
+        return Array.isArray(p.constraint_tags) && p.constraint_tags.includes(filterVal);
+      });
+
+      nav.innerHTML = filtered.map((p, idx) => {
+        const isSelected = p.id === currentProjectId;
+        const shortNum = p.id.slice(0, 2);
+        const shortLatency = p.latency.split("(")[0].trim();
+        return `
+          <button onclick="selectProject('${p.id}')" class="btn-control w-full text-left px-3 py-2.5 rounded-lg border ${isSelected ? 'bg-blue-50/80 border-blue-300 border-l-4 border-l-blue-600' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-mono text-[11px] font-bold ${isSelected ? 'text-blue-700' : 'text-slate-400'}">${shortNum}</span>
+                <span class="text-xs font-semibold truncate ${isSelected ? 'text-slate-900' : 'text-slate-700'}">${p.name}</span>
+              </div>
+              <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 shrink-0 tabular-nums">${shortLatency}</span>
+            </div>
+            <div class="text-[11px] text-slate-500 truncate mt-0.5 pl-5">${p.paradigm}</div>
+          </button>
+        `;
+      }).join("");
+
+      if (filtered.length === 0) {
+        nav.innerHTML = `<div class="p-3 text-xs text-slate-500 text-center">No library matches filter.</div>`;
+      }
+      lucide.createIcons();
+    }
+
+    async function selectProject(id) {
+      stopTraceAnimation();
+      currentProjectId = id;
+      activeStageFilter = "ALL";
+      activeSchemaCategory = "ALL";
+      schemaSearchQuery = "";
+      const schemaSearchEl = document.getElementById("schema-search-input");
+      if (schemaSearchEl) schemaSearchEl.value = "";
+      document.getElementById("stage-filter-reset-btn").classList.add("hidden");
+      const schemaResetEl = document.getElementById("schema-flow-reset-btn");
+      if (schemaResetEl) schemaResetEl.classList.add("hidden");
+
+      const p = projectsData.find(x => x.id === id);
+      if (!p) return;
+
+      renderProjectsNav();
+
+      // Update Header
+      document.getElementById("header-lib-name").innerText = p.name;
+      document.getElementById("header-lib-creator").innerText = p.creator;
+      document.getElementById("header-lib-paradigm").innerText = `${p.paradigm} — ${p.task_type}`;
+      document.getElementById("header-dataset-pill").innerText = `${p.dataset_name}`;
+
+      // Update Guide Drawer
+      updateFloatingGuide(p);
+
+      // Load Process Trace & EMSI Integration Data
+      const res = await fetch(`/api/project/${id}/selection-process`);
+      currentSelectionData = await res.json();
+
+      renderProcessMonitor(currentSelectionData);
+      renderEMSIBlueprint(currentSelectionData, p);
+      renderLibrarySchema(currentSelectionData, p);
+
+      // Populate & Run initial prediction
+      setupInferenceForm(p);
+      await submitInference(true);
+
+      // Load Dataset background cache
+      loadProjectDataset(false);
+    }
+
+    function switchView(viewName) {
+      currentView = viewName;
+      const views = {
+        monitor: { btn: document.getElementById("view-btn-monitor"), el: document.getElementById("view-monitor") },
+        integration: { btn: document.getElementById("view-btn-integration"), el: document.getElementById("view-integration") },
+        schema: { btn: document.getElementById("view-btn-schema"), el: document.getElementById("view-schema") }
+      };
+
+      const activeBtnCls = "view-tab-active btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-semibold bg-white text-slate-900 border border-slate-200 shadow-sm flex items-center gap-1.5";
+      const idleBtnCls = "btn-control min-h-[34px] px-3 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5";
+
+      Object.entries(views).forEach(([key, obj]) => {
+        if (!obj.btn || !obj.el) return;
+        const isActive = key === viewName;
+        obj.el.classList.toggle("hidden", !isActive);
+        obj.btn.className = isActive ? activeBtnCls : idleBtnCls;
+        const icon = obj.btn.querySelector("svg, i");
+        if (icon) {
+          icon.classList.toggle("text-blue-600", isActive);
+          icon.classList.toggle("text-slate-500", !isActive);
+        }
+      });
+
+      document.getElementById("workspace-scroll-body").scrollTop = 0;
+      lucide.createIcons();
+    }
+
+    // =====================================================================
+    // PROCESS & DECISION MONITOR RENDERERS
+    // =====================================================================
+    function renderProcessMonitor(data) {
+      renderPipelineStages(data.pipeline_stages);
+      renderCandidateTable(data.candidate_evaluations || []);
+      renderDecisionTrace(data.decision_trace || []);
+      renderWinnerSummary(data.winner_summary);
+      lucide.createIcons();
+    }
+
+    function renderPipelineStages(stages) {
+      if (!stages) return;
+      const grid = document.getElementById("pipeline-stages-grid");
+      const items = [
+        { key: "PROFILE", data: stages.stage_1_profile, meta: `${stages.stage_1_profile.metrics.rows} rows · ${stages.stage_1_profile.metrics.cv_folds}-fold` },
+        { key: "PRUNE", data: stages.stage_2_prune, meta: `${stages.stage_2_prune.kept_count} kept · ${stages.stage_2_prune.pruned_count} pruned` },
+        { key: "TRIAL", data: stages.stage_3_search, meta: stages.stage_3_search.strategy },
+        { key: "SELECT", data: stages.stage_4_select, meta: `Artifact: ${stages.stage_4_select.artifact}` }
+      ];
+
+      grid.innerHTML = items.map(item => {
+        const isActive = activeStageFilter === item.key;
+        return `
+          <button onclick="filterTraceByStage('${item.key}')" id="stage-card-${item.key}" class="stage-card text-left p-3.5 rounded-lg border ${isActive ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-white'}">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <span class="text-xs font-bold text-slate-900">${item.data.title}</span>
+              <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 tabular-nums shrink-0">${item.meta}</span>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-snug text-pretty">${item.data.action}</p>
+            <div class="mt-2 pt-2 border-t border-slate-200/70 text-[11px] font-mono text-slate-700 truncate">
+              -> ${item.data.output}
+            </div>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function filterTraceByStage(phaseKey) {
+      if (phaseKey === "ALL" || activeStageFilter === phaseKey) {
+        activeStageFilter = "ALL";
+        document.getElementById("stage-filter-reset-btn").classList.add("hidden");
+      } else {
+        activeStageFilter = phaseKey;
+        document.getElementById("stage-filter-reset-btn").classList.remove("hidden");
+      }
+      renderPipelineStages(currentSelectionData.pipeline_stages);
+      renderDecisionTrace(currentSelectionData.decision_trace || []);
+    }
+
+    function statusBadgeHtml(status) {
+      const map = {
+        "WINNER": "bg-emerald-50 text-emerald-800 border-emerald-200",
+        "ENSEMBLED": "bg-blue-50 text-blue-800 border-blue-200",
+        "EVALUATED": "bg-slate-100 text-slate-700 border-slate-200",
+        "PRUNED": "bg-red-50 text-red-800 border-red-200"
+      };
+      const cls = map[status] || map["EVALUATED"];
+      return `<span class="inline-block px-2 py-0.5 rounded border font-mono text-[10px] font-bold ${cls}">${status}</span>`;
+    }
+
+    function renderCandidateTable(candidates) {
+      const body = document.getElementById("candidate-table-body");
+      if (!candidates.length) {
+        body.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">No candidate evaluations recorded.</td></tr>`;
+        return;
+      }
+      document.getElementById("candidate-metric-header").innerText = candidates[0].val_metric_name || "Score";
+
+      body.innerHTML = candidates.map(c => {
+        const isPruned = c.status === "PRUNED";
+        const pct = Math.max(0, Math.min(100, Math.round((c.val_score || 0) * 100)));
+        return `
+          <tr class="${c.status === 'WINNER' ? 'bg-emerald-50/30' : (isPruned ? 'bg-red-50/20 opacity-85' : 'hover:bg-slate-50')}">
+            <td class="py-2.5 px-3 align-top">${statusBadgeHtml(c.status)}</td>
+            <td class="py-2.5 px-3 align-top">
+              <div class="font-semibold text-slate-900">${c.model}</div>
+              <div class="font-mono text-[10px] text-slate-500 mt-0.5">${c.layer_or_trial}</div>
+              <div class="font-mono text-[10px] text-slate-400 truncate max-w-[190px]" title="${c.params}">${c.params}</div>
+            </td>
+            <td class="py-2.5 px-3 align-top font-mono tabular-nums">
+              <div class="font-semibold ${isPruned ? 'text-red-700' : 'text-slate-900'}">${c.val_score > 0 ? c.val_score.toFixed(4) : 'SKIPPED'}</div>
+              <div class="w-16 h-1.5 rounded-full bg-slate-200 mt-1 overflow-hidden">
+                <div class="h-full ${isPruned ? 'bg-red-400' : (c.status === 'WINNER' ? 'bg-emerald-600' : 'bg-blue-500')}" style="width: ${pct}%"></div>
+              </div>
+            </td>
+            <td class="py-2.5 px-3 align-top font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap">
+              <div>${c.fit_time_s.toFixed(2)}s fit</div>
+              <div class="text-slate-400">${c.infer_latency_ms}ms inf</div>
+            </td>
+            <td class="py-2.5 px-3 align-top text-slate-700 leading-snug text-pretty">${c.reason}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function phaseBadgeHtml(phase) {
+      const colors = {
+        "PROFILE": "bg-slate-100 text-slate-800 border-slate-300",
+        "PRUNE": "bg-amber-50 text-amber-800 border-amber-200",
+        "TRIAL": "bg-blue-50 text-blue-800 border-blue-200",
+        "ENSEMBLE": "bg-indigo-50 text-indigo-800 border-indigo-200",
+        "SELECT": "bg-emerald-50 text-emerald-800 border-emerald-200",
+        "EXPORT": "bg-slate-800 text-white border-slate-800"
+      };
+      const cls = colors[phase] || colors["PROFILE"];
+      return `<span class="inline-block px-1.5 py-0.5 rounded border font-mono text-[10px] font-semibold ${cls}">${phase}</span>`;
+    }
+
+    function renderDecisionTrace(steps, highlightedStep = null) {
+      const body = document.getElementById("trace-table-body");
+      const filtered = steps.filter(s => {
+        if (activeStageFilter === "ALL") return true;
+        if (activeStageFilter === "SELECT") return s.phase === "SELECT" || s.phase === "EXPORT" || s.phase === "ENSEMBLE";
+        return s.phase === activeStageFilter;
+      });
+
+      body.innerHTML = filtered.map(s => {
+        const isCurrent = highlightedStep === s.step;
+        return `
+          <tr id="trace-row-${s.step}" class="trace-row ${isCurrent ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : 'hover:bg-slate-50'}">
+            <td class="py-2.5 px-3 align-top font-mono font-bold text-slate-500 tabular-nums">#${s.step}</td>
+            <td class="py-2.5 px-3 align-top">${phaseBadgeHtml(s.phase)}</td>
+            <td class="py-2.5 px-3 align-top text-right font-mono text-slate-500 tabular-nums">${s.elapsed_ms}ms</td>
+            <td class="py-2.5 px-3 align-top">
+              <div class="font-semibold text-slate-900">${s.action}</div>
+              <div class="text-slate-500 mt-0.5 leading-snug">${s.detail}</div>
+            </td>
+            <td class="py-2.5 px-3 align-top font-medium text-slate-800 leading-snug">${s.decision}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderWinnerSummary(summary) {
+      if (!summary) return;
+      document.getElementById("winner-name-el").innerText = summary.winner_name;
+      document.getElementById("winner-formula-el").innerText = summary.selection_formula;
+      document.getElementById("winner-reasons-el").innerHTML = summary.why_it_won.map(r => `<li>${r}</li>`).join("");
+
+      const maxImp = Math.max(...summary.feature_importances.map(f => f.importance), 0.01);
+      document.getElementById("feature-importance-bars").innerHTML = summary.feature_importances.map(f => {
+        const w = Math.round((f.importance / maxImp) * 100);
+        return `
+          <div>
+            <div class="flex items-center justify-between text-xs mb-0.5">
+              <span class="font-mono font-medium text-slate-800">${f.feature}</span>
+              <span class="text-[11px] text-slate-500">${f.direction} <strong class="font-mono text-slate-800 tabular-nums">(${(f.importance * 100).toFixed(0)}%)</strong></span>
+            </div>
+            <div class="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div class="h-full bg-blue-600" style="width: ${w}%"></div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // =====================================================================
+    // LIVE PIPELINE EXECUTION + STEP-BY-STEP TRACE PLAYBACK
+    // =====================================================================
+    async function runAndTracePipeline() {
+      const btn = document.getElementById("run-trace-btn");
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Executing...</span>`;
+      lucide.createIcons();
+
+      stopTraceAnimation();
+      activeStageFilter = "ALL";
+      document.getElementById("stage-filter-reset-btn").classList.add("hidden");
+
+      try {
+        const res = await fetch(`/api/project/${currentProjectId}/pipeline`, { method: "POST" });
+        const data = await res.json();
+
+        currentSelectionData = { ...currentSelectionData, ...data };
+        renderCandidateTable(data.candidate_evaluations || []);
+        renderPipelineStages(data.pipeline_stages);
+        renderWinnerSummary(data.winner_summary);
+
+        const animate = document.getElementById("trace-animate-toggle").checked;
+        if (animate && data.decision_trace && data.decision_trace.length > 0) {
+          startTraceAnimation(data.decision_trace, data.duration_seconds);
+        } else {
+          renderDecisionTrace(data.decision_trace || []);
+          document.getElementById("trace-playback-banner").innerText = `Pipeline verified in ${data.duration_seconds}s (${data.status.toUpperCase()}).`;
+          showToast(`${currentProjectId} verified in ${data.duration_seconds}s.`);
+        }
+      } catch (err) {
+        console.error("Pipeline execution error:", err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i><span>Run & Trace Process</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    function replayTraceAnimation() {
+      if (!currentSelectionData || !currentSelectionData.decision_trace) return;
+      startTraceAnimation(currentSelectionData.decision_trace, currentSelectionData.duration_seconds || "1.2");
+    }
+
+    function startTraceAnimation(steps, duration) {
+      stopTraceAnimation();
+      document.getElementById("stop-trace-btn").classList.remove("hidden");
+      let i = 0;
+
+      const stepForward = () => {
+        if (i >= steps.length) {
+          stopTraceAnimation();
+          renderDecisionTrace(steps, null);
+          document.getElementById("trace-playback-banner").innerText = `Completed ${steps.length} decision steps (${duration}s total execution).`;
+          showToast("Decision trace playback complete.");
+          return;
+        }
+        const active = steps[i];
+        renderDecisionTrace(steps, active.step);
+        document.getElementById("trace-playback-banner").innerHTML = `<strong>Step ${active.step}/${steps.length} [${active.phase}]</strong>: ${active.action}`;
+        i++;
+        traceTimerId = setTimeout(stepForward, 420);
+      };
+      stepForward();
+    }
+
+    function stopTraceAnimation() {
+      if (traceTimerId) {
+        clearTimeout(traceTimerId);
+        traceTimerId = null;
+      }
+      document.getElementById("stop-trace-btn").classList.add("hidden");
+    }
+
+    // =====================================================================
+    // INLINE LIVE DECISION TESTER & FEATURE IMPACT DELTAS
+    // =====================================================================
+    function setupInferenceForm(p) {
+      const container = document.getElementById("inference-fields");
+      const entries = Object.entries(p.sample_input);
+      container.innerHTML = entries.map(([key, val]) => {
+        const isNum = typeof val === "number";
+        return `
+          <div>
+            <label class="block text-[11px] font-mono text-slate-600 mb-0.5 truncate" title="${key}">${key}</label>
+            <input type="${isNum ? 'number' : 'text'}" step="${Number.isInteger(val) ? '1' : '0.01'}" name="${key}" value="${val}"
+              class="w-full h-8 px-2.5 rounded border border-slate-300 bg-white text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600 tabular-nums">
+          </div>
+        `;
+      }).join("");
+    }
+
+    function resetInferenceDefaults() {
+      const p = projectsData.find(x => x.id === currentProjectId);
+      if (p) {
+        setupInferenceForm(p);
+        submitInference(true);
+      }
+    }
+
+    function applyInferencePreset(mode) {
+      const p = projectsData.find(x => x.id === currentProjectId);
+      if (!p) return;
+      setupInferenceForm(p);
+      const f = document.getElementById("inference-form").elements;
+
+      if (mode === "risk") {
+        if (currentProjectId === "01_autogluon") { f["support_tickets"].value = 5; f["monthly_charges"].value = 115; f["contract_type"].value = "Month-to-month"; f["tenure_months"].value = 3; }
+        else if (currentProjectId === "02_flaml") { f["credit_score"].value = 520; f["debt_to_income"].value = 0.52; }
+        else if (currentProjectId === "03_h2o_automl") { f["overtime"].value = "Yes"; f["job_satisfaction"].value = 1; }
+        else if (currentProjectId === "04_pycaret") { f["age"].value = 65; f["exercise_angina"].value = "Y"; f["chest_pain_type"].value = "ASY"; }
+        else if (currentProjectId === "05_tpot") { f["failed_logins"].value = 4; f["src_bytes"].value = 55000; }
+        else if (currentProjectId === "06_autosklearn") { f["duration"].value = 520; f["pdays"].value = 12; }
+        else if (currentProjectId === "07_tabpfn") { f["biomarker_01"].value = 0.7; f["biomarker_05"].value = 1.4; }
+        else if (currentProjectId === "08_agentic_automl") { f["annual_visits"].value = 35; f["loyalty_member"].value = 1; f["avg_cart_value"].value = 140; }
+      } else {
+        if (currentProjectId === "01_autogluon") { f["support_tickets"].value = 0; f["tenure_months"].value = 48; f["contract_type"].value = "Two year"; f["monthly_charges"].value = 45; }
+        else if (currentProjectId === "02_flaml") { f["credit_score"].value = 780; f["debt_to_income"].value = 0.14; }
+        else if (currentProjectId === "03_h2o_automl") { f["overtime"].value = "No"; f["job_satisfaction"].value = 4; }
+        else if (currentProjectId === "04_pycaret") { f["age"].value = 35; f["exercise_angina"].value = "N"; f["chest_pain_type"].value = "NAP"; }
+        else if (currentProjectId === "05_tpot") { f["failed_logins"].value = 0; f["src_bytes"].value = 420; f["diff_srv_rate"].value = 0.05; }
+        else if (currentProjectId === "06_autosklearn") { f["duration"].value = 95; f["pdays"].value = -1; }
+        else if (currentProjectId === "07_tabpfn") { f["biomarker_01"].value = -0.8; f["biomarker_05"].value = -1.2; }
+        else if (currentProjectId === "08_agentic_automl") { f["annual_visits"].value = 5; f["loyalty_member"].value = 0; f["avg_cart_value"].value = 45; }
+      }
+      submitInference();
+    }
+
+    async function submitInference(silent = false) {
+      const form = document.getElementById("inference-form");
+      const formData = new FormData(form);
+      const inputs = {};
+      formData.forEach((v, k) => {
+        const n = parseFloat(v);
+        inputs[k] = !isNaN(n) && v.trim() !== "" ? n : v;
+      });
+
+      try {
+        const res = await fetch(`/api/project/${currentProjectId}/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inputs })
+        });
+        const r = await res.json();
+
+        document.getElementById("infer-latency-badge").innerText = `${r.latency_ms} ms`;
+        document.getElementById("infer-engine-badge").innerText = r.runtime_engine;
+        document.getElementById("infer-explanation-text").innerText = r.explanation || "";
+
+        if (r.predicted_class) {
+          document.getElementById("infer-output-label").innerText = r.predicted_class;
+        } else {
+          document.getElementById("infer-output-label").innerText = `${r.predicted_value} (${r.tier})`;
+        }
+
+        if (r.probability !== undefined) {
+          document.getElementById("infer-prob-wrapper").classList.remove("hidden");
+          const pct = Math.round(r.probability * 100);
+          document.getElementById("infer-prob-text").innerText = `${pct}%`;
+          document.getElementById("infer-prob-bar").style.width = `${pct}%`;
+        } else {
+          document.getElementById("infer-prob-wrapper").classList.add("hidden");
+        }
+
+        const impacts = r.feature_impacts || [];
+        document.getElementById("infer-impacts-list").innerHTML = impacts.map(imp => {
+          const isPos = imp.impact > 0;
+          const sign = isPos ? "+" : "";
+          const badgeCls = isPos ? "text-amber-800 bg-amber-50 border-amber-200" : "text-emerald-800 bg-emerald-50 border-emerald-200";
+          return `
+            <div class="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-slate-200/60 last:border-0">
+              <div class="min-w-0">
+                <span class="font-mono font-medium text-slate-800">${imp.feature}</span>=<span class="font-mono text-slate-600">${imp.value}</span>
+                <div class="text-[10px] text-slate-500 truncate">${imp.note}</div>
+              </div>
+              <span class="px-1.5 py-0.5 rounded border font-mono font-semibold tabular-nums shrink-0 ${badgeCls}">
+                ${sign}${imp.impact}
+              </span>
+            </div>
+          `;
+        }).join("");
+
+        if (!silent) showToast(`Prediction calculated in ${r.latency_ms} ms`);
+      } catch (err) {
+        console.error("Prediction failed:", err);
+      }
+    }
+
+    // =====================================================================
+    // EMSI INTEGRATION BLUEPRINT & ARBITRATOR
+    // =====================================================================
+    function renderEMSIBlueprint(data, projectMeta) {
+      const emsi = data.emsi_integration;
+      if (!emsi) return;
+
+      document.getElementById("spec-target-service").innerText = emsi.target_service;
+      document.getElementById("spec-serialization").innerText = projectMeta.serialization;
+      document.getElementById("spec-latency").innerText = projectMeta.latency;
+
+      document.getElementById("when-to-use-list").innerHTML = (emsi.when_to_use || []).map(x => `<li>${x}</li>`).join("");
+      document.getElementById("when-to-avoid-list").innerHTML = (emsi.when_to_avoid || []).map(x => `<li>${x}</li>`).join("");
+
+      switchIntegrationCodeTab(activeCodeTab);
+    }
+
+    // =====================================================================
+    // LIBRARY SCHEMA & ELEMENTS REFERENCE RENDERERS
+    // =====================================================================
+    function renderLibrarySchema(data, projectMeta) {
+      const schema = data && data.library_schema;
+      if (!schema) return;
+
+      document.getElementById("schema-lib-title").innerText = `${projectMeta.name} — Internal Architecture & Object Schema`;
+      document.getElementById("schema-arch-summary").innerText = schema.architecture_summary || "";
+
+      renderSchemaArchFlow(schema);
+      renderSchemaCategoryPills();
+      renderSchemaElementsTable();
+      renderSchemaParamsTable(schema);
+      renderSchemaFilesList(schema);
+      lucide.createIcons();
+    }
+
+    function renderSchemaArchFlow(schema) {
+      const grid = document.getElementById("schema-arch-flow-grid");
+      const flow = schema.architecture_flow || [];
+      grid.innerHTML = flow.map(node => {
+        const isActive = activeSchemaCategory !== "ALL" && activeSchemaCategory === node.category;
+        return `
+          <button onclick="setSchemaCategoryFilter('${escapeHtml(node.category)}')" class="stage-card text-left p-3.5 rounded-lg border flex flex-col justify-between ${isActive ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-white'}">
+            <div>
+              <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700">${escapeHtml(node.role_badge)}</span>
+              </div>
+              <div class="font-mono text-xs font-bold text-slate-900 break-words">${escapeHtml(node.module_name)}</div>
+              <p class="text-[11px] text-slate-600 mt-1.5 leading-snug text-pretty">${escapeHtml(node.purpose)}</p>
+            </div>
+            <div class="mt-2.5 pt-2 border-t border-slate-200/70 space-y-1 font-mono text-[10px]">
+              <div class="text-slate-500 truncate" title="${escapeHtml(node.input_contract)}"><span class="font-semibold text-slate-700">In:</span> ${escapeHtml(node.input_contract)}</div>
+              <div class="text-blue-700 truncate" title="${escapeHtml(node.output_contract)}"><span class="font-semibold text-slate-700">Out:</span> ${escapeHtml(node.output_contract)}</div>
+            </div>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function renderSchemaCategoryPills() {
+      const container = document.getElementById("schema-category-pills");
+      if (!container) return;
+      container.querySelectorAll("button[data-schema-cat]").forEach(btn => {
+        const cat = btn.getAttribute("data-schema-cat");
+        const isActive = cat === activeSchemaCategory;
+        btn.className = isActive
+          ? "schema-pill-active btn-control px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-900 text-white border border-slate-900"
+          : "btn-control px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-slate-600 border border-slate-300 hover:bg-slate-50";
+      });
+      const resetBtn = document.getElementById("schema-flow-reset-btn");
+      if (resetBtn) resetBtn.classList.toggle("hidden", activeSchemaCategory === "ALL");
+    }
+
+    function setSchemaCategoryFilter(cat) {
+      if (cat === "ALL" || activeSchemaCategory === cat) {
+        activeSchemaCategory = "ALL";
+      } else {
+        activeSchemaCategory = cat;
+      }
+      if (currentSelectionData && currentSelectionData.library_schema) {
+        renderSchemaArchFlow(currentSelectionData.library_schema);
+      }
+      renderSchemaCategoryPills();
+      renderSchemaElementsTable();
+    }
+
+    function onSchemaSearchInput(val) {
+      schemaSearchQuery = (val || "").trim().toLowerCase();
+      renderSchemaElementsTable();
+    }
+
+    function typeBadgeHtml(badge) {
+      const map = {
+        "CLASS": "bg-blue-50 text-blue-800 border-blue-200",
+        "ENGINE": "bg-indigo-50 text-indigo-800 border-indigo-200",
+        "METHOD": "bg-emerald-50 text-emerald-800 border-emerald-200",
+        "CONFIG": "bg-amber-50 text-amber-800 border-amber-200",
+        "ARTIFACT": "bg-slate-800 text-white border-slate-800"
+      };
+      const cls = map[badge] || "bg-slate-100 text-slate-700 border-slate-200";
+      return `<span class="inline-block px-1.5 py-0.5 rounded border font-mono text-[10px] font-bold ${cls}">${escapeHtml(badge)}</span>`;
+    }
+
+    function renderSchemaElementsTable() {
+      const body = document.getElementById("schema-elements-table-body");
+      const schema = currentSelectionData && currentSelectionData.library_schema;
+      if (!schema || !schema.elements_catalog) {
+        body.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-500">No element catalog loaded.</td></tr>`;
+        return;
+      }
+
+      const filtered = schema.elements_catalog.filter(item => {
+        const matchesCat = activeSchemaCategory === "ALL" || item.category === activeSchemaCategory;
+        if (!matchesCat) return false;
+        if (!schemaSearchQuery) return true;
+        const haystack = `${item.element} ${item.category} ${item.what_it_is_for} ${item.how_it_works} ${item.code_usage} ${item.emsi_mapping}`.toLowerCase();
+        return haystack.includes(schemaSearchQuery);
+      });
+
+      if (filtered.length === 0) {
+        body.innerHTML = `<tr><td colspan="4" class="p-5 text-center text-slate-500">No library elements match the current filter.</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = filtered.map(item => `
+        <tr class="hover:bg-slate-50/80">
+          <td class="py-3 px-4 align-top">
+            <div class="font-mono font-bold text-slate-900 break-words">${escapeHtml(item.element)}</div>
+            <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+              ${typeBadgeHtml(item.type_badge)}
+              <span class="text-[10px] text-slate-500">${escapeHtml(item.category)}</span>
+            </div>
+          </td>
+          <td class="py-3 px-4 align-top text-slate-800 leading-snug text-pretty">${escapeHtml(item.what_it_is_for)}</td>
+          <td class="py-3 px-4 align-top text-slate-600 leading-snug text-pretty">${escapeHtml(item.how_it_works)}</td>
+          <td class="py-3 px-4 align-top space-y-1.5">
+            <pre class="p-2 rounded bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto select-all whitespace-pre-wrap break-words">${escapeHtml(item.code_usage)}</pre>
+            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 font-mono text-[10px] text-blue-800">
+              <span>${escapeHtml(item.emsi_mapping)}</span>
+            </div>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    function renderSchemaParamsTable(schema) {
+      const body = document.getElementById("schema-params-table-body");
+      const params = schema.parameters_schema || [];
+      body.innerHTML = params.map(p => `
+        <tr class="hover:bg-slate-50">
+          <td class="py-2.5 px-3 align-top font-mono font-semibold text-slate-900">${escapeHtml(p.param)}</td>
+          <td class="py-2.5 px-3 align-top font-mono text-[11px] tabular-nums">
+            <div class="text-blue-700 font-medium">${escapeHtml(p.type)}</div>
+            <div class="text-slate-500 mt-0.5">def: ${escapeHtml(p.default)}</div>
+          </td>
+          <td class="py-2.5 px-3 align-top font-mono text-[11px] text-slate-600 break-words">${escapeHtml(p.allowed)}</td>
+          <td class="py-2.5 px-3 align-top text-slate-700 leading-snug text-pretty">${escapeHtml(p.purpose)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderSchemaFilesList(schema) {
+      const listEl = document.getElementById("schema-files-list");
+      const files = schema.project_files_schema || [];
+      listEl.innerHTML = files.map(f => `
+        <div class="pt-3 first:pt-0 space-y-1">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <code class="font-mono text-xs font-semibold text-slate-900">${escapeHtml(f.file_path)}</code>
+            <span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px] font-semibold text-slate-700">${escapeHtml(f.role)}</span>
+          </div>
+          <div class="font-mono text-[11px] text-blue-700">${escapeHtml(f.exports)}</div>
+          <p class="text-xs text-slate-600 leading-snug text-pretty">${escapeHtml(f.description)}</p>
+        </div>
+      `).join("");
+    }
+
+    function switchIntegrationCodeTab(tab) {
+      activeCodeTab = tab;
+      ["adapter", "catalog", "wiring"].forEach(t => {
+        const btn = document.getElementById(`code-tab-${t}`);
+        btn.className = t === tab
+          ? "view-tab-active btn-control px-3 py-1.5 rounded-md text-xs font-semibold bg-white text-slate-900 border border-slate-300 shadow-sm"
+          : "btn-control px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900";
+      });
+
+      if (!currentSelectionData || !currentSelectionData.emsi_integration) return;
+      const emsi = currentSelectionData.emsi_integration;
+      const p = projectsData.find(x => x.id === currentProjectId);
+      const shortLib = p ? p.folder.replace(/^\d+_/, "").replace(/_project$/, "") : "automl";
+
+      if (tab === "adapter") {
+        document.getElementById("integration-code-filename").innerText = `services/e2-training-service/app/adapters/${shortLib}_adapter.py`;
+        document.getElementById("integration-code-pre").innerText = emsi.adapter_code;
+      } else if (tab === "catalog") {
+        document.getElementById("integration-code-filename").innerText = `services/e2-training-service/app/main.py (MODELS_CATALOG)`;
+        document.getElementById("integration-code-pre").innerText = emsi.catalog_entry_code;
+      } else {
+        document.getElementById("integration-code-filename").innerText = `FastAPI Wiring & CLI Setup`;
+        document.getElementById("integration-code-pre").innerText = `${emsi.service_wiring_code}\n\n# Terminal Install Command:\n# ${emsi.dependencies_cli}`;
+      }
+    }
+
+    function copyIntegrationCode() {
+      const code = document.getElementById("integration-code-pre").innerText;
+      navigator.clipboard.writeText(code);
+      showToast("Integration snippet copied.");
+    }
+
+    async function runArbitration() {
+      const payload = {
+        priority: document.getElementById("arb-priority").value,
+        env: document.getElementById("arb-env").value,
+        max_latency_ms: parseFloat(document.getElementById("arb-latency").value),
+        requires_audit: document.getElementById("arb-audit").checked,
+        budget_tight: document.getElementById("arb-budget").checked
+      };
+
+      try {
+        const res = await fetch("/api/arbitrate-framework", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        document.getElementById("arbitrator-winner-pill").innerText = `Top Match: ${data.recommended_name} (${data.rankings[0].score}/100)`;
+
+        document.getElementById("arbitrator-table-body").innerHTML = data.rankings.map((r, i) => `
+          <tr class="${i === 0 ? 'bg-blue-50/40' : 'hover:bg-slate-50'}">
+            <td class="py-2 px-3 font-mono font-bold tabular-nums ${i === 0 ? 'text-blue-700' : 'text-slate-400'}">#${i + 1}</td>
+            <td class="py-2 px-3 font-semibold text-slate-900">${r.name}</td>
+            <td class="py-2 px-3 font-mono tabular-nums">
+              <div class="flex items-center gap-2">
+                <div class="w-16 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div class="h-full ${i === 0 ? 'bg-blue-600' : 'bg-slate-500'}" style="width: ${r.score}%"></div>
+                </div>
+                <span class="${i === 0 ? 'font-bold text-blue-800' : 'text-slate-600'}">${r.score}%</span>
+              </div>
+            </td>
+            <td class="py-2 px-3 font-mono text-slate-600">${r.latency}</td>
+            <td class="py-2 px-3 text-slate-600 text-pretty">${r.reasons.join(" · ")}</td>
+            <td class="py-2 px-3 text-right">
+              <button onclick="selectProject('${r.id}'); switchView('monitor');" class="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-medium text-slate-700">
+                Inspect
+              </button>
+            </td>
+          </tr>
+        `).join("");
+      } catch (err) {
+        console.error("Arbitration failed:", err);
+      }
+    }
+
+    // =====================================================================
+    // DATASET PREVIEW DRAWER
+    // =====================================================================
+    function openDatasetDrawer() {
+      document.getElementById("dataset-drawer").classList.remove("hidden");
+      lucide.createIcons();
+    }
+    function closeDatasetDrawer() {
+      document.getElementById("dataset-drawer").classList.add("hidden");
+    }
+
+    async function loadProjectDataset(refresh = false) {
+      try {
+        const res = await fetch(`/api/project/${currentProjectId}/dataset?n_samples=500`);
+        const data = await res.json();
+        currentDataset = data;
+
+        document.getElementById("dataset-drawer-title").innerText = `${data.dataset_name} (Target: ${data.target})`;
+        document.getElementById("dataset-stats-grid").innerHTML = `
+          <div class="p-3 rounded-lg border border-slate-200 bg-slate-50"><div class="text-[11px] text-slate-500">Rows</div><div class="font-mono text-base font-bold text-slate-900 tabular-nums">${data.total_rows}</div></div>
+          <div class="p-3 rounded-lg border border-slate-200 bg-slate-50"><div class="text-[11px] text-slate-500">Columns</div><div class="font-mono text-base font-bold text-slate-900 tabular-nums">${data.total_columns}</div></div>
+          <div class="p-3 rounded-lg border border-slate-200 bg-slate-50"><div class="text-[11px] text-slate-500">Target Column</div><div class="font-mono text-base font-bold text-blue-700">${data.target}</div></div>
+          <div class="p-3 rounded-lg border border-slate-200 bg-slate-50"><div class="text-[11px] text-slate-500">Validation</div><div class="font-mono text-base font-bold text-emerald-700">VALIDATED</div></div>
+        `;
+
+        const cols = data.columns;
+        let html = `<thead class="bg-slate-100 border-b border-slate-200 text-[11px] text-slate-600 sticky top-0"><tr>`;
+        cols.forEach(c => { html += `<th class="py-2 px-2.5 font-semibold ${c === data.target ? 'bg-blue-50 text-blue-800' : ''}">${c}</th>`; });
+        html += `</tr></thead><tbody class="divide-y divide-slate-100 text-slate-700">`;
+        data.preview.forEach(r => {
+          html += `<tr class="hover:bg-slate-50">`;
+          cols.forEach(c => { html += `<td class="py-1.5 px-2.5 ${c === data.target ? 'font-bold bg-blue-50/40 text-slate-900' : ''}">${r[c] ?? 'null'}</td>`; });
+          html += `</tr>`;
+        });
+        html += `</tbody>`;
+        document.getElementById("dataset-table-el").innerHTML = html;
+
+        if (refresh) showToast("Dataset regenerated.");
+      } catch (err) {
+        console.error("Dataset load failed:", err);
+      }
+    }
+
+    function exportDatasetCSV() {
+      if (!currentDataset) return;
+      const keys = currentDataset.columns;
+      const lines = [keys.join(",")].concat(currentDataset.preview.map(row => keys.map(k => `"${row[k] ?? ''}"`).join(",")));
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentProjectId}_sample.csv`;
+      a.click();
+      showToast("Exported sample CSV.");
+    }
+
+    // =====================================================================
+    // BOTTOM-RIGHT FLOATING GUIDE & TECHNICAL MANUALS
+    // =====================================================================
+    function updateFloatingGuide(p) {
+      document.getElementById("guide-pill-label").innerText = `Guide: ${p.name}`;
+      document.getElementById("guide-card-title").innerText = `${p.name} Guide & CLI`;
+      document.getElementById("guide-card-subtitle").innerText = `${p.creator} · ${p.task_type}`;
+      document.getElementById("guide-paradigm-desc").innerText = `${p.description}`;
+      document.getElementById("guide-cli-train").innerText = `cd automl_projects/${p.folder} && python train.py`;
+      document.getElementById("guide-cli-predict").innerText = `python predict.py`;
+      document.getElementById("guide-spec-latency").innerText = p.latency;
+      document.getElementById("guide-spec-export").innerText = p.serialization;
+      document.getElementById("guide-spec-runtime").innerText = p.id === "03_h2o_automl" ? "JVM MOJO (No Python)" : (p.id === "05_tpot" ? "Pure Scikit-Learn" : "Python 3.10+");
+    }
+
+    function updateGuideCliInstall(emsi) {
+      if (emsi && emsi.dependencies_cli) {
+        document.getElementById("guide-cli-install").innerText = emsi.dependencies_cli;
+      }
+    }
+
+    // Hook into renderEMSIBlueprint cleanly to keep install CLI synced
+    const _origRenderEMSI = renderEMSIBlueprint;
+    renderEMSIBlueprint = function(data, projectMeta) {
+      _origRenderEMSI(data, projectMeta);
+      updateGuideCliInstall(data.emsi_integration);
+    };
+
+    function toggleFloatingGuide() {
+      document.getElementById("floating-guide-card").classList.toggle("hidden");
+      lucide.createIcons();
+    }
+
+    function switchGuideTab(tab) {
+      ["usage", "cli", "specs"].forEach(t => {
+        const btn = document.getElementById(`guide-tab-${t}`);
+        const sub = document.getElementById(`guide-sub-${t}`);
+        if (t === tab) {
+          btn.className = "px-3 py-1.5 rounded-t-md font-semibold text-blue-700 bg-white border-t border-x border-slate-200 -mb-px";
+          sub.classList.remove("hidden");
+        } else {
+          btn.className = "px-3 py-1.5 rounded-t-md font-medium text-slate-600 hover:text-slate-900";
+          sub.classList.add("hidden");
+        }
+      });
+    }
+
+    function copyElText(id) {
+      navigator.clipboard.writeText(document.getElementById(id).innerText);
+      showToast("Command copied.");
+    }
+
+    async function openManualModal(kind) {
+      const p = projectsData.find(x => x.id === currentProjectId);
+      const url = kind === "project" ? `/api/project/${currentProjectId}/manual` : `/api/master-manual`;
+      document.getElementById("manual-modal-title").innerText = kind === "project" ? `${p.name} — MANUAL.md` : "Master AutoML Architecture Guide";
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        document.getElementById("manual-modal-body").innerHTML = marked.parse(data.manual);
+        document.getElementById("manual-modal").classList.remove("hidden");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function closeManualModal() {
+      document.getElementById("manual-modal").classList.add("hidden");
+    }
+
+    // =====================================================================
+    // PRESENTATION SLIDES DECK
+    // =====================================================================
+    let currentSlideIdx = 0;
+    const presentationSlides = [
+      { tag: "EMSI 5A CAPSTONE", title: "AutoML Process & Microservice Integration", bullets: ["Automated CASH problem resolution across 8 open-source paradigms.", "Full decision traceability: Data Profiling -> Pruning -> Search -> Winner Selection.", "Unified Adapter architecture targeting services/e2-training-service and e3-assistant-service."] },
+      { tag: "1 · AUTOGLUON (AWS)", title: "Multi-Layer OOF Stacking", bullets: ["Ranked #1 on TabArena tabular benchmarks.", "Trains CatBoost, LightGBM, XGBoost & Neural Nets with Out-of-Fold probabilities.", "Exports ONNX computation graphs for 1-5ms non-PyTorch runtime serving."] },
+      { tag: "2 · FLAML (MICROSOFT)", title: "Cost-Frugal BlendSearch", bullets: ["Alternates global Bayesian optimization with low-cost local exploration.", "Tests fast trees first before investing budget in deep ensembles.", "Ideal when e2-training-service enforces strict 30s CPU caps."] },
+      { tag: "3 · H2O AUTOML", title: "Distributed JVM & Sub-Millisecond MOJO", bullets: ["Trains DRF, XRT, GLM, GBM random grids inside an in-memory JVM cluster.", "Combines runs into SuperLearner AllModels & BestOfFamily ensembles.", "Exports binary MOJO zip executing in < 1ms without any Python interpreter."] },
+      { tag: "4 · PYCARET", title: "Low-Code MLOps Experiment Wrapper", bullets: ["Standardizes preprocessing + 15+ scikit-learn algorithms in a single compare_models() tournament.", "Applies Optuna Bayesian tuning cleanly on top-ranked candidates.", "Integrates MLflow tracking and exports a unified .pkl artifact."] },
+      { tag: "5 · TPOT (DEAP)", title: "Genetic Programming White-Box Export", bullets: ["Evolves pipeline trees of scalers, selectors & classifiers via NSGA-II Pareto pruning.", "Minimizes operator bloat alongside ROC-AUC maximization.", "Exports 100% auditable Python scikit-learn source code requiring zero TPOT dependency."] },
+      { tag: "6 · AUTO-SKLEARN", title: "OpenML Meta-Learning & SMAC3", bullets: ["Extracts 38 statistical meta-features to warm-start Bayesian search from OpenML priors.", "Uses Random Forest SMAC3 surrogate modeling over 110+ hyperparameters.", "Requires POSIX/Docker environment (Dockerfile verified)."] },
+      { tag: "7 · TABPFN", title: "Zero-Shot Tabular Foundation Model", bullets: ["Pre-trained Transformer doing In-Context Learning over 500-10,000 rows.", "Zero gradient descent (0.00s training time) via single attention forward pass.", "Outperforms tuned GBDTs on small clinical and scientific tabular datasets."] },
+      { tag: "8 · AGENTIC AUTOML", title: "Architect -> Coder -> Reviewer Loop", bullets: ["Architect designs domain-aware pipeline; Coder synthesizes Python code.", "Reviewer runs isolated subprocess tests and traps stack traces for automatic repair.", "Integrates natively into Zakariae's e3-assistant-service."] }
+    ];
+
+    function launchSlidesPresentation() {
+      document.getElementById("slides-overlay").classList.remove("hidden");
+      currentSlideIdx = 0;
+      renderCurrentSlide();
+      document.addEventListener("keydown", handleSlideKeys);
+    }
+    function exitSlidesPresentation() {
+      document.getElementById("slides-overlay").classList.add("hidden");
+      document.removeEventListener("keydown", handleSlideKeys);
+    }
+    function nextSlide() { if (currentSlideIdx < presentationSlides.length - 1) { currentSlideIdx++; renderCurrentSlide(); } }
+    function prevSlide() { if (currentSlideIdx > 0) { currentSlideIdx--; renderCurrentSlide(); } }
+    function handleSlideKeys(e) {
+      if (e.key === "ArrowRight" || e.key === " ") nextSlide();
+      else if (e.key === "ArrowLeft") prevSlide();
+      else if (e.key === "Escape") exitSlidesPresentation();
+    }
+    function renderCurrentSlide() {
+      const s = presentationSlides[currentSlideIdx];
+      document.getElementById("slide-counter").innerText = `${currentSlideIdx + 1} / ${presentationSlides.length}`;
+      document.getElementById("slide-container").innerHTML = `
+        <div class="w-full max-w-4xl bg-white border border-slate-200 rounded-2xl p-8 md:p-12 shadow-sm space-y-6">
+          <div class="font-mono text-xs font-bold text-blue-700 uppercase tracking-wider">${s.tag}</div>
+          <h2 class="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight text-balance">${s.title}</h2>
+          <ul class="space-y-3 text-base text-slate-700 list-disc pl-5 text-pretty">
+            ${s.bullets.map(b => `<li>${b}</li>`).join("")}
+          </ul>
+        </div>
+      `;
+      document.getElementById("slide-dots").innerHTML = presentationSlides.map((_, idx) => `
+        <button onclick="currentSlideIdx=${idx}; renderCurrentSlide();" class="w-2.5 h-2.5 rounded-full ${idx === currentSlideIdx ? 'bg-blue-600' : 'bg-slate-300'}"></button>
+      `).join("");
+      lucide.createIcons();
+    }
+
+    window.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
