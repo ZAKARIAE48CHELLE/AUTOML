@@ -4,6 +4,8 @@ import { NodePalette } from './palette/NodePalette'
 import { addBlock, changeTask, type Block } from './palette/blocks'
 import { toast, celebrate } from '@/components/Feedback'
 import { CodeImportDialog } from './codeImport/CodeImportDialog'
+import { RecommendMenu } from './RecommendMenu'
+import { recommend, type Recommendation } from './palette/recommend'
 import { PIPELINE_TYPES, buildTemplateSpec, pipelineType, type Task } from '@contracts/src'
 import { validationToast } from '@/components/Feedback'
 import { createPortal } from 'react-dom'
@@ -85,6 +87,9 @@ export function WorkflowEditor() {
 
   // Panneaux latéraux + plein écran navigateur
   const [codeOpen, setCodeOpen] = useState(false)
+  // Menu du clic droit (recommandations) : position écran + canevas, et bloc visé le cas échéant.
+  const [menu, setMenu] = useState<{ clientX: number; clientY: number; flow: { x: number; y: number }; nodeId?: string } | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
   const [panels, setPanels] = useState(readPanels)
   const setPanel = useCallback((side: 'left' | 'right', open: boolean) => setPanels((p) => { const n = { ...p, [side]: open }; writePanels(n); return n }), [])
   // Doit rester stable : WorkflowCanvas resynchronise ses nœuds quand onSelect change.
@@ -167,6 +172,12 @@ export function WorkflowEditor() {
   const nodeIssues = [...local, ...(report && !dirty ? report.layers.flatMap((l) => l.issues) : [])].filter((i) => i.node_id === sel)
   const deleteNode = () => { if (!node) return; setSpec({ ...spec, nodes: spec.nodes.filter((n) => n.id !== node.id), edges: spec.edges.filter((e) => e.from.node !== node.id && e.to.node !== node.id) }); setSel(null) }
   const errorCount = local.filter((i) => i.severity === 'error').length
+  const menuNode = menu?.nodeId ? spec.nodes.find((n) => n.id === menu.nodeId) : undefined
+  /** Suggestion choisie : à droite du bloc visé, sinon à l'endroit du clic droit. */
+  const pickRec = (r: Recommendation) => {
+    const pos = menuNode ? { x: (menuNode.ui?.x ?? 0) + 250, y: menuNode.ui?.y ?? 0 } : menu ? { x: menu.flow.x - 95, y: menu.flow.y - 30 } : undefined
+    setMenu(null); addB(r.block, pos)
+  }
 
   // Rendu dans document.body : la transition de page (transform) ferait sinon de `fixed` un positionnement relatif.
   return createPortal(
@@ -207,7 +218,7 @@ export function WorkflowEditor() {
         </SidePanel>
 
         <div className="relative min-w-0 flex-1">
-          <WorkflowCanvas spec={spec} onChange={setSpec} selected={sel} onSelect={select} severity={severity} height="100%" bare onDropBlock={(raw, pos) => { try { addB(JSON.parse(raw) as Block, pos) } catch { /* contenu étranger */ } }} />
+          <WorkflowCanvas spec={spec} onChange={setSpec} selected={sel} onSelect={select} severity={severity} height="100%" bare onContextMenu={setMenu} onDropBlock={(raw, pos) => { try { addB(JSON.parse(raw) as Block, pos) } catch { /* contenu étranger */ } }} />
 
           {(v.origin === 'ai' || save.error || validate.error || (dirty && !contentChanged)) && (
             <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-4">
@@ -237,6 +248,11 @@ export function WorkflowEditor() {
         </SidePanel>
       </div>
 
+      {menu && (
+        <RecommendMenu x={menu.clientX} y={menu.clientY} accent={pt.color} onClose={closeMenu} onPick={pickRec}
+          title={menuNode ? `Après « ${NODE_TYPE_BY_ID[menuNode.type]?.label ?? menuNode.type} »` : `Suggestions · ${pt.label}`}
+          items={recommend(spec, { columns, models: models.data, nodeId: menuNode?.id })}
+          onDelete={menuNode ? () => { const id = menuNode.id; setMenu(null); setSpec({ ...spec, nodes: spec.nodes.filter((n) => n.id !== id), edges: spec.edges.filter((e) => e.from.node !== id && e.to.node !== id) }); if (sel === id) setSel(null) } : undefined} />)}
       <CodeImportDialog open={codeOpen} onClose={() => setCodeOpen(false)} projectId={projectId ?? undefined} current={spec} models={models.data}
         onApply={(next, how) => { setSpec({ ...next, metadata: { ...next.metadata, origin: spec.metadata.origin, goal_id: spec.metadata.goal_id } }); setSel(null); celebrate('small'); toast(how === 'replace' ? 'Pipeline construit depuis le code' : 'Étapes et modèles du code ajoutés', { tone: 'celebrate', detail: `${pipelineType(next.metadata.task).label} · ${next.nodes.length} nœuds — vérifiez puis enregistrez.` }) }} />
       <Modal open={diffOpen} onClose={() => setDiffOpen(false)} title="Différences avec la version parente">

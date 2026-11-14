@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, Navigate, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Database, Cpu, Bot, Workflow, Package, LogOut, MessageSquare, ShieldCheck, ChevronsUpDown, Sparkles } from 'lucide-react'
+import { Database, Cpu, Bot, Workflow, Package, LogOut, MessageSquare, ShieldCheck, ChevronsUpDown, Sparkles, Palette } from 'lucide-react'
 import { useSession } from '@/lib/session'
 import { SimulationBanner } from '@/components/ui'
 import { PageTransition, TopLoader } from '@/components/Motion'
@@ -40,6 +40,10 @@ export function Layout() {
                   <n.icon className="nav-icon relative h-4 w-4" /><span className="relative">{n.label}</span><span className="relative ml-auto rounded bg-slate-100 px-1 text-[10px] text-slate-400">{n.owner}</span></>}
               </NavLink></motion.div>))}
         </nav>
+        <div className="px-2 pb-2">
+          <NavLink to="/settings" className={({ isActive }) => clsx('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors', isActive ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-100' : 'text-slate-600 hover:bg-brand-50/70 hover:text-brand-700')}>
+            <Palette className="nav-icon h-4 w-4" />Personnaliser</NavLink>
+        </div>
         <div className="border-t border-slate-200/80 p-3 text-xs"><div className="truncate font-medium text-slate-700">{user.name}</div><button onClick={() => { logout(); nav('/login') }} className="mt-1 flex items-center gap-1 text-slate-500 transition hover:text-red-600"><LogOut className="h-3 w-3" />Déconnexion</button></div>
       </motion.aside>
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">

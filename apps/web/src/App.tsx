@@ -19,6 +19,7 @@ import { ExecutionsList } from './modules/studio/ExecutionsList'
 import { ExecutionDetail } from './modules/studio/ExecutionDetail'
 import { ExportPage } from './modules/studio/ExportPage'
 import { RegistryPage } from './modules/studio/RegistryPage'
+import { Personalization } from './shell/Personalization'
 
 export function App() {
   return (
@@ -44,6 +45,7 @@ export function App() {
         <Route path="/studio/executions/:executionId" element={<ExecutionDetail />} />
         <Route path="/studio/exports/:exportId" element={<ExportPage />} />
         <Route path="/studio/registry" element={<RegistryPage />} />
+        <Route path="/settings" element={<Personalization />} />
         <Route path="*" element={<Navigate to="/data" replace />} />
       </Route>
     </Routes>)

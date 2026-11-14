@@ -38,7 +38,9 @@ interface Props { spec: WorkflowSpec; readOnly?: boolean; onChange?: (s: Workflo
   /** Plein écran : sans bordure ni coins arrondis, contrôles de zoom centrés en bas (hors des panneaux latéraux). */
   bare?: boolean
   /** Dépôt d'un bloc de la palette (glisser-déposer) : données brutes + position dans le flux. */
-  onDropBlock?: (raw: string, pos: { x: number; y: number }) => void }
+  onDropBlock?: (raw: string, pos: { x: number; y: number }) => void
+  /** Clic droit sur le fond ou sur un bloc (menu de recommandations). Sans ce rappel, le menu natif reste. */
+  onContextMenu?: (at: { clientX: number; clientY: number; flow: { x: number; y: number }; nodeId?: string }) => void }
 
 type SyncArgs = Pick<Props, 'spec' | 'readOnly' | 'selected' | 'onSelect' | 'severity' | 'status'>
 
@@ -71,7 +73,7 @@ function syncEdges(prev: Edge[], { spec, readOnly, status }: SyncArgs): Edge[] {
 }
 
 export function WorkflowCanvas(p: Props) { return <ReactFlowProvider><Inner {...p} /></ReactFlowProvider> }
-function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status, height = 520, bare, onDropBlock }: Props) {
+function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status, height = 520, bare, onDropBlock, onContextMenu }: Props) {
   const args: SyncArgs = { spec, readOnly, selected, onSelect, severity, status }
   // Flux contrôlé : les nœuds/liens vivent dans un état local auquel on applique TOUS les changements React Flow
   // (dimensions, sélection, glissement), puis la spec y est fusionnée quand elle change.
@@ -88,6 +90,18 @@ function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status,
 
   // Grille interactive : chaque ajout, suppression, connexion, erreur ou exécution fait réagir le fond.
   const fx = useMemo(createFxBus, []); const rf = useReactFlow(); const wrap = useRef<HTMLDivElement>(null)
+  // Le canevas change de taille (panneaux repliés/dépliés, fenêtre) : React Flow garde le coin haut-gauche fixe,
+  // donc on décale la vue de la moitié de la variation pour que le pipeline reste centré (zoom et pan conservés).
+  useEffect(() => {
+    const el = wrap.current; if (!el || typeof ResizeObserver === 'undefined') return
+    let last = { w: el.clientWidth, h: el.clientHeight }
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight, dw = w - last.w, dh = h - last.h; last = { w, h }
+      if (!dw && !dh) return
+      const vp = rf.getViewport(); rf.setViewport({ x: vp.x + dw / 2, y: vp.y + dh / 2, zoom: vp.zoom })
+    })
+    ro.observe(el); return () => ro.disconnect()
+  }, [rf])
   const center = (n?: { ui?: { x: number; y: number } }) => ({ x: (n?.ui?.x ?? 0) + 95, y: (n?.ui?.y ?? 0) + 45 })
   const prevNodes = useRef<Map<string, { ui?: { x: number; y: number }; params?: Record<string, any> }> | null>(null)
   useEffect(() => {
@@ -162,6 +176,8 @@ function Inner({ spec, readOnly, onChange, selected, onSelect, severity, status,
       onDrop={(e) => { const raw = e.dataTransfer.getData(BLOCK_MIME); if (!raw || !onDropBlock) return; e.preventDefault(); const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }); onDropBlock(raw, { x: p.x - 95, y: p.y - 30 }) }}>
       <GridFx bus={fx} />
       <ReactFlow style={{ background: 'transparent' }} nodes={shownNodes} edges={shownEdges} nodeTypes={nodeTypes} colorMode={theme} connectionLineStyle={{ stroke: '#4f81bd', strokeWidth: 2, strokeDasharray: '6 4' }} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} isValidConnection={isValid} onPaneClick={(e) => { onSelect?.(null); const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }); fx.emit('ripple', p.x, p.y) }}
+        onPaneContextMenu={readOnly || !onContextMenu ? undefined : (e) => { e.preventDefault(); const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }); fx.emit('ripple', p.x, p.y); onContextMenu({ clientX: e.clientX, clientY: e.clientY, flow: p }) }}
+        onNodeContextMenu={readOnly || !onContextMenu ? undefined : (e, n) => { e.preventDefault(); const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }); fx.emit('connect', n.position.x + 95, n.position.y + 45); onContextMenu({ clientX: e.clientX, clientY: e.clientY, flow: p, nodeId: n.id }) }}
         onNodeDrag={(e) => { const r = wrap.current?.getBoundingClientRect(); if (r) fx.spot({ x: e.clientX - r.left, y: e.clientY - r.top }) }}
         onNodeDragStop={(_, n) => { fx.spot(null); fx.emit('ripple', n.position.x + 95, n.position.y + 45) }} nodesConnectable={!readOnly} elementsSelectable fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }} deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']} proOptions={{ hideAttribution: true }}>
         <Controls showInteractive={false} {...(bare ? { position: 'bottom-center' as const, orientation: 'horizontal' as const } : {})} />

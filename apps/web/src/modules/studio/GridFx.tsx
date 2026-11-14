@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useStore } from '@xyflow/react'
-import { useTheme } from '@/lib/theme'
+import { useDarkPalette, useTheme } from '@/lib/theme'
 
 /* Grille de points interactive du canevas : ondes au clic, à l'ajout, à la suppression, à la connexion,
  * pulsations d'erreur et d'exécution, projecteur pendant le glissement. Dessin sur <canvas>, animé
@@ -33,8 +33,17 @@ export function GridFx({ bus }: { bus: FxBus }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const [tx, ty, zoom] = useStore((s) => s.transform)
   const dark = useTheme() === 'dark'
-  const st = useRef({ effects: [] as Effect[], spot: null as { x: number; y: number } | null, raf: 0, view: [0, 0, 1], dark: false, reduce: false, kick: () => {} }).current
-  st.view = [tx, ty, zoom]; st.dark = dark
+  const palette = useDarkPalette()
+  // Couleurs des points et du halo de glissement : celles de la palette sombre active (variables --d-* de styles.css).
+  const colors = useMemo(() => {
+    if (!dark) return { base: 'rgba(148,163,184,0.55)', spot: '79,129,189' }
+    const cs = getComputedStyle(document.documentElement)
+    const base = cs.getPropertyValue('--d-grid').trim() || 'rgba(52,70,105,0.6)'
+    const spot = cs.getPropertyValue('--d-accent').trim().split(/\s+/).join(',') || '79,129,189'
+    return { base, spot }
+  }, [dark, palette])
+  const st = useRef({ effects: [] as Effect[], spot: null as { x: number; y: number } | null, raf: 0, view: [0, 0, 1], colors, reduce: false, kick: () => {} }).current
+  st.view = [tx, ty, zoom]; st.colors = colors
 
   useEffect(() => {
     const cv = ref.current!; const ctx = cv.getContext('2d')!
@@ -49,7 +58,7 @@ export function GridFx({ bus }: { bus: FxBus }) {
       const now = performance.now()
       st.effects = st.effects.filter((e) => now - e.t0 < e.dur)
       const fx = st.effects.map((e) => ({ ...e, sx: e.x * z + vx, sy: e.y * z + vy, p: (now - e.t0) / e.dur, reach: (e.kind === 'run' ? 140 : 260) * Math.max(0.6, Math.sqrt(z)) }))
-      const base = st.dark ? 'rgba(52,70,105,0.6)' : 'rgba(148,163,184,0.55)'
+      const base = st.colors.base
       const r0 = Math.max(0.8, Math.min(1.5, Math.sqrt(z)))
       const ox = ((vx % gap) + gap) % gap, oy = ((vy % gap) + gap) % gap
       ctx.fillStyle = base
@@ -66,7 +75,7 @@ export function GridFx({ bus }: { bus: FxBus }) {
             if (e.kind === 'error') k *= 0.55 + 0.45 * Math.abs(Math.sin(e.p * Math.PI * 3))
             if (k > 0.03) { if (k > boost) { boost = k; col = e.color } if (d > 0) { dx += (ddx / d) * k * 3; dy += (ddy / d) * k * 3 } }
           }
-          if (st.spot) { const k = Math.max(0, 1 - Math.hypot(x - st.spot.x, y - st.spot.y) / 130) * 0.9; if (k > boost) { boost = k; col = '79,129,189' } }
+          if (st.spot) { const k = Math.max(0, 1 - Math.hypot(x - st.spot.x, y - st.spot.y) / 130) * 0.9; if (k > boost) { boost = k; col = st.colors.spot } }
           if (boost > 0.03) {
             ctx.fillStyle = `rgba(${col},${0.3 + boost * 0.65})`; ctx.beginPath(); ctx.arc(x + dx, y + dy, r0 + boost * 2.3, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = base
           } else ctx.fillRect(x - r0 / 2, y - r0 / 2, r0, r0)
@@ -83,7 +92,7 @@ export function GridFx({ bus }: { bus: FxBus }) {
   }, [bus, st])
 
   // Redessin au déplacement / zoom du canevas et au changement de thème.
-  useEffect(() => { st.kick() }, [tx, ty, zoom, dark, st])
+  useEffect(() => { st.kick() }, [tx, ty, zoom, colors, st])
 
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
 }

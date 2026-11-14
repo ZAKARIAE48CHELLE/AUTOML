@@ -8,11 +8,11 @@ import { BLOCK_MIME, checklist, type Block } from './blocks'
 import { NODE_SHAPE, Shape } from './Shape'
 
 /** Couleur d'un bloc = couleur de son port de sortie sur le canevas (on apprend ce qui se branche à quoi). */
-const NODE_COLOR: Record<string, string> = {
+export const NODE_COLOR: Record<string, string> = {
   'data.dataset': '#0e7490', 'data.split': '#7c3aed', 'data.preprocess': '#c2410c', 'train.model': '#2563eb',
   'train.tune': '#2563eb', 'eval.compare': '#65a30d', 'eval.final_test': '#2563eb', 'model.register': '#be185d',
 }
-const STEP_CATEGORY: Record<string, { label: string; color: string }> = {
+export const STEP_CATEGORY: Record<string, { label: string; color: string }> = {
   cleaning: { label: 'Nettoyage', color: '#c2410c' }, encoding: { label: 'Encodage', color: '#b45309' }, scaling: { label: 'Mise à l\'échelle', color: '#a16207' },
   features: { label: 'Variables', color: '#9a3412' }, time: { label: 'Temps', color: '#059669' }, text: { label: 'Texte', color: '#d97706' },
   image: { label: 'Image', color: '#db2777' }, interactions: { label: 'Interactions', color: '#4f46e5' },

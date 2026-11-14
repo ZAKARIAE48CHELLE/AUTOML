@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark" />
     <script>
       // Thème appliqué avant le premier rendu (évite le flash clair → sombre).
-      try { var t = localStorage.getItem('ai-studio.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); if (t === 'dark') { document.documentElement.classList.add('dark'); document.documentElement.style.colorScheme = 'dark' } } catch (e) {}
+      try { var t = localStorage.getItem('ai-studio.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); if (t === 'dark') { document.documentElement.classList.add('dark'); document.documentElement.style.colorScheme = 'dark' } var p = localStorage.getItem('ai-studio.palette'); if (p) document.documentElement.dataset.palette = p } catch (e) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Studio</title>
